@@ -4,30 +4,28 @@
 ; Blink the SD card select LED.
 ; This runs entirely from the FLASH (does not use SRAM).
 ;****************************************************************************
-
     org     0x0000   
 
 ;############################################################################
-; STARTING HERE, WE ARE RUNNING FROM FLASH, NOT USING ANY RAM
+; STARTING HERE, WE ARE RUNNING FROM FLASH
 ;############################################################################   
+ld      hl,0x0000                       ; initialize hl with 0
 
 main:
     ;turn the LED on (disk led is inverted)
-    ld      a, gpio_out_0_sd_mosi   
-    out     (gpio_out_0), a         
-    ld      hl,0x0000           
+    ld      a, 0                        ; load a with 0
+    out     (gpio_out_0), a             ; io write to output 0 
 
     ;first delay loop
 loop_on:                            
-    dec     hl
+    dec     hl                  
     ld      a, h
     or      l
     jp      nz, loop_on
 
     ;turn the LED off (disk led is inverted)
-    ld      a,gpio_out_0_sd_mosi | gpio_out_0_sd_ssel
+    ld      a, gpio_out_0_sd_ssel
     out     (gpio_out_0), a         
-    ld      hl,0x0000
 
     ;second delay loop
 loop_off:                         
