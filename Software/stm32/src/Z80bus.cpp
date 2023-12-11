@@ -33,7 +33,6 @@
 #define MREQ_SET         GPIOA->BSRR = GPIO_PIN_14
 #define IOREQ_SET        GPIOA->BSRR = GPIO_PIN_15
 #define BUSREQ_SET       GPIOH->BSRR = GPIO_PIN_0
-#define M1_SET           GPIOH->BSRR = GPIO_PIN_1
 #define RESET_SET        GPIOA->BSRR = GPIO_PIN_11
 
 //makros for clearing (asserting) control lines
@@ -43,7 +42,6 @@
 #define MREQ_CLR         GPIOA->BSRR = GPIO_PIN_14 << 16
 #define IOREQ_CLR        GPIOA->BSRR = GPIO_PIN_15 << 16
 #define BUSREQ_CLR       GPIOH->BSRR = GPIO_PIN_0 << 16
-#define M1_CLR           GPIOH->BSRR = GPIO_PIN_1 << 16
 #define RESET_CLR        GPIOA->BSRR = GPIO_PIN_11 << 16
 
 /*--------------------------------------------------------------------------------------------------------
@@ -51,6 +49,7 @@
 ---------------------------------------------------------------------------------------------------------*/
 void Z80bus::process(void) {
     
+#ifdef IOREQ_SERVED
     //check if there is an active IOREQ from the Z80
     //if so, check if it is for this device (on TeachZ80 only addresses 0x6x can be used by the stm32)
     if ((busmode == passive) && (!IOREQ_IS_HIGH) && (!M1_IS_HIGH)) { 
@@ -62,6 +61,7 @@ void Z80bus::process(void) {
             if (!RD_IS_HIGH) Serial.printf("IOREQ READ received to register %d\r\n", ioregister);
         }
     }
+#endif
 
 }
 
@@ -69,10 +69,15 @@ void Z80bus::process(void) {
  Constructor
 ---------------------------------------------------------------------------------------------------------*/
 Z80bus::Z80bus(void) {
-
     //I/O ports initialization
     //all lines required by the bus need to be open drain outputs, they have external pull ups to 5v
     busmode = passive;
+
+    //Enable GPIO clocks in case they have not by the arduino framework
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_GPIOC_CLK_ENABLE();
+    __HAL_RCC_GPIOH_CLK_ENABLE();
 
     // 0x01 in OTYPER (1 bit per pin) sets the port pin to open drain mode
     GPIOA->OTYPER = setPortBits(GPIOA->OTYPER, PORTA_BUS_LINES_IN_USE, 0x01, false);
@@ -99,9 +104,16 @@ Z80bus::Z80bus(void) {
     GPIOH->PUPDR = setPortBits(GPIOH->PUPDR, PORTH_BUS_LINES_IN_USE, 0x00, true);
 
     //release all lines
-    release_dataBus();
-    release_addressBus();
-    release_controlBus();
+    release_bus();
+}
+
+/*--------------------------------------------------------------------------------------------------------
+reset Z80
+---------------------------------------------------------------------------------------------------------*/
+void Z80bus::resetZ80() {
+    RESET_CLR;
+    delay(2);
+    RESET_SET;
 }
 
 /*--------------------------------------------------------------------------------------------------------
@@ -109,8 +121,16 @@ set/release a specific control bit
 ---------------------------------------------------------------------------------------------------------*/
 void Z80bus::write_controlBit(Z80bus_controlBits bit, bool state) {
     if (busmode == passive) return;
-    if ((bit == reset) &&   state) RESET_SET;
-    if ((bit == reset) &&  !state) RESET_CLR;
+    if ((bit == reset) &&  state) RESET_SET;
+    if ((bit == reset) && !state) RESET_CLR;
+    if ((bit == ioreq) &&  state) IOREQ_SET;
+    if ((bit == ioreq) && !state) IOREQ_CLR;
+    if ((bit == mreq ) &&  state) MREQ_SET;
+    if ((bit == mreq ) && !state) MREQ_CLR;
+    if ((bit == rd   ) &&  state) RD_SET;
+    if ((bit == rd   ) && !state) RD_CLR;
+    if ((bit == wr   ) &&  state) WR_SET;
+    if ((bit == wr   ) && !state) WR_CLR;
 }
 
 /*--------------------------------------------------------------------------------------------------------
@@ -130,20 +150,25 @@ bool Z80bus::request_bus(){
 ---------------------------------------------------------------------------------------------------------*/
 void Z80bus::write_dataBus(uint8_t data) {
     if (busmode == passive) return;
-    GPIOA->BSRR = (data & 0b11000111) << 16;
-    GPIOH->BSRR = (data & 0b00111000) << 26; //yes, 26. 
+    uint16_t dataA = data & PORTA_DATA_LINES_IN_USE;
+    uint16_t dataC = (data << 10) & PORTC_DATA_LINES_IN_USE;
+
+    GPIOA->BSRR = data & PORTA_DATA_LINES_IN_USE;
+    GPIOA->BSRR = (~dataA & PORTA_DATA_LINES_IN_USE) << 16;
+    GPIOC->BSRR = (data << 10) & PORTC_DATA_LINES_IN_USE;
+    GPIOC->BSRR = (~(data << 10) & PORTC_DATA_LINES_IN_USE) << 16;
 }
 
-void Z80bus::write_addressBus(uint8_t address) {
+void Z80bus::write_addressBus(uint16_t address) {
     if (busmode == passive) return;
-    GPIOB->BSRR = address << 16;
+    GPIOB->ODR = address;
 }
 
 /*--------------------------------------------------------------------------------------------------------
  Bus read functions
 ---------------------------------------------------------------------------------------------------------*/
 uint8_t Z80bus::read_dataBus() {
-    return (GPIOA->IDR & 0b11000111) | (GPIOH->IDR >> 10);
+    return (GPIOA->IDR & PORTA_DATA_LINES_IN_USE) | ((GPIOC->IDR & PORTC_DATA_LINES_IN_USE) >> 10);
 }
 
 uint16_t Z80bus::read_addressBus() {
@@ -153,6 +178,14 @@ uint16_t Z80bus::read_addressBus() {
 /*--------------------------------------------------------------------------------------------------------
  Bus release functions - set output pins high (release pins)
 ---------------------------------------------------------------------------------------------------------*/
+void Z80bus::release_bus() {
+    release_dataBus();
+    release_addressBus();
+    release_controlBus();
+    BUSREQ_SET;
+    busmode = passive;
+}
+
 void Z80bus::release_dataBus() {
     GPIOA->BSRR = PORTA_DATA_LINES_IN_USE;
     GPIOC->BSRR = PORTC_DATA_LINES_IN_USE;
@@ -165,12 +198,11 @@ void Z80bus::release_addressBus() {
 void Z80bus::release_controlBus() {
     GPIOA->BSRR = PORTA_CONTROL_LINES_IN_USE;
     GPIOH->BSRR = PORTH_CONTROL_LINES_IN_USE;
-    busmode = passive;
 }
 
 /*--------------------------------------------------------------------------------------------------------
 Helper function to change bits in a 32bit gpio register based on a 16 bit mask (pins changed by this 
-function) to a defined bitvalue. Works for 1 or two bits per pin
+function) to a defined bitvalue. Works for 1 or 2 bits per pin
 ---------------------------------------------------------------------------------------------------------*/
 uint32_t Z80bus::setPortBits(uint32_t portregister, uint32_t pinsInUnse, uint32_t bitvalue, bool twoBits) {
     uint32_t registerOut = 0;
@@ -179,7 +211,7 @@ uint32_t Z80bus::setPortBits(uint32_t portregister, uint32_t pinsInUnse, uint32_
     if (twoBits) copymask = 0x03;
     uint32_t setmask = bitvalue & copymask;
 
-    for (int i=0; i<15; i++) {
+    for (int i=0; i<16; i++) {
         if (pinsInUnse & checkmask) registerOut |= setmask; //set the bits according the bitvalue
         else registerOut |= (portregister & copymask);  //copy the bits from the input
         checkmask = checkmask << 1;

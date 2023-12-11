@@ -11,7 +11,9 @@
 #include <FlashLoader.h>
 
 /* Types and definitions -------------------------------------------------------------------------------- */
-enum ApplicationState : byte { Idle, Test };
+#define FLASH_MODE_DEACTIVATION_TIME_S  2
+
+enum ApplicationState : byte { Idle, FlashMode };
 
 /* Variables and instances ------------------------------------------------------------------------------ */
 ApplicationState applicationState = Idle;
@@ -21,24 +23,28 @@ Si5153 clock(PA3, PA5);
 Z80bus z80bus;
 FlashLoader flashloader(z80bus);
 
+uint32_t appTiming;
+
 /*#########################################################################################################
  Main Program
 ##########################################################################################################*/
 
 /* Initialization --------------------------------------------------------------------------------------- */
 void setup() {
+	Serial.setTx(PA9);
+	Serial.setRx(PA10);	
 	Serial.begin(115200);
 	statusLed.on();
-	if (clock.begin()) {
-		//100khz clock
-		clock.configureChannel(0, 12800000, 128);
-		//150khz clock
-		clock.configureChannel(1, 19200000, 128, 1);
-		//1MHz clock
-		clock.configureChannel(2, 64000000, 64, 1, true);
-		Serial.println("Clockgenerator OK");
+
+	if (clock.begin()) {	
+		clock.configureChannel(0, 10000000, 1, 0); //10.000 MHz System Cock
+		clock.configureChannel(1, 1843200, 1, 1);  //1.8432 MHZ Clock SIOA
+		clock.configureChannel(2, 1843200, 1, 1);  //1.8432 MHZ Clock SIOA
 	}
-	else Serial.println("Clockgenerator ERROR");
+
+	z80bus.resetZ80();
+	delay(1000);
+	statusLed.set(1, 3998);
 }
 
 /* Main loop -------------------------------------------------------------------------------------------- */
@@ -49,18 +55,28 @@ void loop() {
    	statusLed.process();
    	button.process();
 
+	static uint32_t last;
+	static uint8_t address = 0;
+
 	switch (applicationState) {
 		case Idle: {
 			if (button.pushTrigger()) {
-				statusLed.set(300, 700);
-				applicationState = Test;
+				flashloader.setFlashMode(true);
+
+				Serial.println("Entering Flash Mode");
+				statusLed.set(200, 200);
+				applicationState = FlashMode;	
+				appTiming = millis();			
 			}
 			break;
    		}
 
-    	case Test: {
-			if (button.pushTrigger()) {
-				statusLed.set(10, 990);
+    	case FlashMode: {
+			if (button.pushTrigger() || (millis() - appTiming > FLASH_MODE_DEACTIVATION_TIME_S*1000)) {
+
+				Serial.println("Exiting Flash Mode");
+				flashloader.setFlashMode(false);	
+				statusLed.set(1, 3998);
 				applicationState = Idle;
 			}
 			break;
@@ -68,5 +84,46 @@ void loop() {
     
    		default: break;
    	}
+
+}
+
+/* -------------------------------------------------------------------------------------------------------
+ STM32CubeMX Generated Clock Initialization, 80MHz Systemclock
+--------------------------------------------------------------------------------------------------------- */
+void SystemClock_Config(void) {
+
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  /** Configure the main internal regulator output voltage
+  */
+  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK) Error_Handler();
+
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSEState = RCC_HSE_OFF;
+  RCC_OscInitStruct.LSEState = RCC_LSE_OFF;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+  RCC_OscInitStruct.PLL.PLLM = 1;
+  RCC_OscInitStruct.PLL.PLLN = 10;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) Error_Handler();
+
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK) Error_Handler();
 
 }

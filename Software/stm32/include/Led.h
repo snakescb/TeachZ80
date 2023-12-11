@@ -13,7 +13,8 @@
             void on() { set(1, 0); }
 
         private:
-            uint8_t _pin, _state, _on, _off;
+            uint8_t _pin, _state;
+            uint16_t _on, _off;
             uint32_t _event;
     };
 

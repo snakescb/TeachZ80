@@ -1,4 +1,5 @@
 #include <Si5153.h>
+#include <Si5351A-RevB-Registers.h>
 
 /* Types and definitions -------------------------------------------------------------------------------- */  
 #define CHIP_STATUS              0
@@ -32,24 +33,23 @@ bool Si5153::begin() {
     //read the status register. If transfer is successful and bit 7 (SYS_INIT) is 0, the device is ready to be configured
     //if not, delay 10ms and try again, after 5 tries give up
     for (int i=0; i<5; i++) {
-        bool i2cOk = i2c_readRegister(CHIP_STATUS, i2cdata, 1);
-        if (i2cOk && (i2cdata[0] & 0x80 == 0)) {            
+        i2c_readRegister(CHIP_STATUS, i2cdata, 1);
+        if ((i2cdata[0] & 0x80) == 0) {            
             //device is ready, configure it
             //disable all output clocks
             i2c_writeRegister(CLK_ENABLE_CONTROL, 0xFF);
+            //configure all 8 clocks to PLLA, multisynth, power down, 8ma drive, non inverted
+            for (int i=0; i<8; i++) i2cdata[i] = 0b10001111;
+            i2c_writeRegister(CLK0_CONTROL, i2cdata, 8);
             //use crystal for both PLL's, divider 1 -> PLL input = 25MHz
             i2c_writeRegister(PLL_SRC, 0);
-            //set both PLL's to 800Mhz. Calculate register contents
-            calc_frequencyRegisters(XTAL_FREQ, PLL_FREQ);
+            calc_frequencyRegisters(PLL_FREQ, XTAL_FREQ);
             //divider is 0 for PLL's
             r0 = 0;
             //setup both PLL's
             set_frequencyRegisters(SYNTH_PLL_A);
             set_frequencyRegisters(SYNTH_PLL_B);
-            //configure all 8 clocks to PLLA, multisynth, power down, 8ma drive, non inverted
-            for (int i=0; i<8; i++) i2cdata[i] = 0b10001111;
-            i2c_writeRegister(CLK0_CONTROL, i2cdata, 8);
-
+            
             Serial.println("Si5351: Initialization complete");
             return true;
         }
@@ -63,18 +63,18 @@ bool Si5153::begin() {
 /*--------------------------------------------------------------------------------------------------------
  Setup output channel
  PLL: 0 = PLLA, 1 = PLLB
- Divider: 1-128
+ Divider: 1-128 ONLY POWERS OF 2 ALLOWD
  Channel: 0-7
 ---------------------------------------------------------------------------------------------------------*/
-bool Si5153::configureChannel(uint8_t channel, float freqOut, uint8_t divider, uint8_t pll, bool enabled) {
+bool Si5153::configureChannel(uint8_t channel, unsigned long freqOut, uint8_t divider, uint8_t pll, bool enabled) {
     //check channel
     if (channel > 7) { Serial.println("Si5351: Invalid channel received in configuration"); return false; }
     if (pll > 1) { Serial.println("Si5351: Invalid pll received in configuration"); return false; }
     if ((divider == 0) || (divider > 128)) { Serial.println("Si5351: Invalid divider received in configuration"); return false; }
 
     //check if output frequency can be achieved by multisynth alone (without divider)
-    if (freqOut > PLL_FREQ/15) { Serial.printf("Si5351: Requested frequency is too high. Maximum possible is %d\r\n", PLL_FREQ/15); return false; }
-    if (freqOut < PLL_FREQ/90) { Serial.printf("Si5351: Requested frequency is too low. Minimum possible is %d\r\n", PLL_FREQ/90); return false; }
+    if (freqOut > PLL_FREQ/8) { Serial.printf("Si5351: Requested frequency is too high. Maximum possible is %d\r\n", PLL_FREQ/8); return false; }
+    if (freqOut < PLL_FREQ/2048) { Serial.printf("Si5351: Requested frequency is too low. Minimum possible is %d\r\n", PLL_FREQ/2048); return false; }
 
     //disable channel
     //set OEB bit to disable channel
@@ -86,7 +86,6 @@ bool Si5153::configureChannel(uint8_t channel, float freqOut, uint8_t divider, u
     uint8_t CTRL_register =  0b10001111;
     i2c_writeRegister(CLK0_CONTROL+channel, CTRL_register);
 
-    
     if (!enabled) {
         Serial.printf("Si5351: Channel %d disabled\r\n", channel);
         return true;
@@ -103,7 +102,10 @@ bool Si5153::configureChannel(uint8_t channel, float freqOut, uint8_t divider, u
     CTRL_register = (CTRL_register & 0x7F) | (pll < 5);
     i2c_writeRegister(CLK0_CONTROL+channel, CTRL_register);
 
-    Serial.printf("Si5351: Channel %d configured and enabled\r\n", channel);
+    unsigned long outfreqfull = freqOut / 1000000;
+    unsigned long outfreqrem  = (freqOut -  outfreqfull*1000000) / 100;
+
+    Serial.printf("Si5351: Clock %d configured to %01d.%04d MHz and enabled\r\n", channel, outfreqfull, outfreqrem);
     return true;
 }
 
@@ -112,23 +114,23 @@ bool Si5153::configureChannel(uint8_t channel, float freqOut, uint8_t divider, u
  R divider IS not considered. The output frequency can be further divides by 1..128 with the r registers.
  user can set R through configureChannel function if further division is required
 ---------------------------------------------------------------------------------------------------------*/
-void Si5153::calc_frequencyRegisters(float clockIn, float clockOut) {
+void Si5153::calc_frequencyRegisters(unsigned long clockIn, unsigned long clockOut) {
     unsigned long a, b;
     unsigned long c = 0x0FFFFF; // 1048575, full resolution for c (c is a 20 bit number)
     double divider;
 
     //calulcate a, b and c
     //f_out = f_in*(a + (b/c))
-    divider = clockOut / clockIn;
+    divider = (float)clockIn / (float)clockOut;
     a = (unsigned long) divider;
-    b = (unsigned long) (divider - a)*c;
+    b = (unsigned long) ((float)(divider - a)*c);
 
     //calulate p1, p2 and p3 according datasheet
-    p1 = 128*a + ((unsigned int) 128*b / c) - 512;
-    p2 = 128*b - ((unsigned int) 128*b / c);
+    p1 = 128 * a + ((unsigned long) (128 * b / c)) - 512;
+    p2 = 128 * b - c * ((unsigned long) (128 * b / c));
     p3 = c;
 
-    Serial.printf("Si5351 debug: Frequency registers calculated: f_in: %d, f_out: %d - abc: a: %d, b: %d, c: %d - p-values: p1: %d, p2: %d, p3: %d\r\n", clockIn, clockOut, a, b, c, p1, p2, p3);
+    //Serial.printf("Si5351 debug: Frequency registers calculated: f_in: %u, f_out: %u - abc: a: %u, b: %u, c: %u - p-values: p1: %u, p2: %u, p3: %u\r\n", clockIn, clockOut, a, b, c, p1, p2, p3);
 }  
 
 /*--------------------------------------------------------------------------------------------------------
@@ -148,6 +150,15 @@ bool Si5153::set_frequencyRegisters(uint8_t baseRegister) {
 }
 
 /*--------------------------------------------------------------------------------------------------------
+ apply premade config in include/Si5351A-RevB-Registers.h
+---------------------------------------------------------------------------------------------------------*/
+void Si5153::beginPremadeConfig() {
+    i2c_init();
+
+    for (int i=0; i<SI5351A_REVB_REG_CONFIG_NUM_REGS; i++) i2c_writeRegister(si5351a_revb_registers[i].address & 0xFF, si5351a_revb_registers[i].value);
+}
+
+/*--------------------------------------------------------------------------------------------------------
  I2C functions
 ---------------------------------------------------------------------------------------------------------*/
 void Si5153::i2c_init() {
@@ -158,36 +169,57 @@ void Si5153::i2c_init() {
 bool Si5153::i2c_writeRegister(uint8_t regaddr, uint8_t* data, uint8_t length) {
     if (length > SI5351_I2C_BUFSIZE) return false;
 
-    uint8_t errors = 0;
-    //write register address to chip
-    errors += i2cbus.startWrite(i2caddr);
-    errors += i2cbus.write(regaddr);
-    //write data to chip
-    for (int i=0; i<length; i++) errors += i2cbus.readThenAck(data[i]);
+    i2cbus.llStart((i2caddr << 1) + i2cbus.writeMode);
+    i2cbus.llWrite(regaddr);
+    for (int i=0; i<length; i++) i2cbus.llWrite(data[i]);
     i2cbus.stop();
 
-    if (errors) return false;
+    //Serial.printf("i2c register write - Address: %02X, Data: ", regaddr);
+    //for (int i = 0; i < length; ++i) Serial.printf("%02X ", data[i]);
+    //Serial.println();
+
     return true;
 }
 
 bool Si5153::i2c_readRegister(uint8_t regaddr, uint8_t* data, uint8_t length) {
     if (length > SI5351_I2C_BUFSIZE) return false;
 
-    uint8_t errors = 0;
-    //write register address to chip, follows stop by datasheet
-    errors += i2cbus.startWrite(i2caddr);
-    errors += i2cbus.write(regaddr);
-    i2cbus.stop();
-    //read data from chip
-    errors += i2cbus.startRead(i2caddr);
-    for (int i=0; i<length-1; i++) errors += i2cbus.readThenAck(data[i]);
-    errors += i2cbus.readThenNack(data[length-1]);
+    i2cbus.llStart((i2caddr << 1) + i2cbus.writeMode);
+    i2cbus.llWrite(regaddr);
     i2cbus.stop();
 
-    if (errors) return false;
+    i2cbus.llStart((i2caddr << 1) + i2cbus.readMode);
+    for (int i=0; i<length-1; i++) i2cbus.llRead(data[i], true);
+    i2cbus.llRead(data[length-1], false);
+    i2cbus.stop();
+
+    //Serial.printf("i2c register read  - Address: %02X, Data: ", regaddr);
+    //for (int i = 0; i < length; ++i) Serial.printf("%02X ", data[i]);
+    //Serial.println();
+
     return true;
 }
 
 bool Si5153::i2c_writeRegister(uint8_t regaddr, uint8_t regbyte) {
     return i2c_writeRegister(regaddr, &regbyte, 1);
 }
+
+void Si5153::scanBus(uint8_t firstAddr, uint8_t lastAddr) {
+    i2cbus.setTimeout_ms(200);
+
+    Serial.printf("Interrogating all addresses in range 0x%X - 0x%X...\r\n", firstAddr, lastAddr);
+
+    for (uint8_t addr = firstAddr; addr <= lastAddr; addr++) {
+        delayMicroseconds(50);
+        bool error = i2cbus.llStart((addr << 1) + 1); // Signal a read
+        i2cbus.stop();
+        if (!error) {
+            Serial.print("\rDevice found at 0x");
+            Serial.println(addr, HEX);
+            Serial.flush();
+        }
+        delay(5);
+    }
+    Serial.println("Finished");
+}
+

@@ -31,7 +31,9 @@
         public:
             Si5153(uint8_t sda, uint8_t scl, uint8_t i2cDeviceAddress = SI5351_I2C_ADDRESS);
             bool begin();
-            bool configureChannel(uint8_t channel, float freqOut, uint8_t divider=1, uint8_t pll=0, bool enabled=true);            
+            bool configureChannel(uint8_t channel, unsigned long freqOut, uint8_t divider=1, uint8_t pll=0, bool enabled=true);    
+            void scanBus(uint8_t firstAddr = 0, uint8_t lastAddr = 0x7F);     
+            void beginPremadeConfig();   
 
         private:
             uint8_t i2caddr, i2cdata[SI5351_I2C_BUFSIZE];
@@ -41,7 +43,7 @@
             bool i2c_writeRegister(uint8_t regaddr, uint8_t regbyte);
             bool i2c_writeRegister(uint8_t regaddr, uint8_t* data, uint8_t length);
             bool i2c_readRegister(uint8_t regaddr, uint8_t* data, uint8_t length);   
-            void calc_frequencyRegisters(float clockIn, float clockOut);         
+            void calc_frequencyRegisters(unsigned long clockIn, unsigned long clockOut);         
             bool set_frequencyRegisters(uint8_t baseRegister);         
     };
 

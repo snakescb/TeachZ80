@@ -11,7 +11,7 @@
 
     #include <Arduino.h>
 
-    #define IOREQ_SERVED true
+    #define IOREQ_SERVED
     #define IOREQ_PORT  0x60
 
     class Z80bus {
@@ -22,14 +22,16 @@
             enum Z80bus_controlBits { reset, ioreq, mreq, rd, wr };
 
             Z80bus(void);    
+            void resetZ80();
             void process(void);      
             bool request_bus();
+            void release_bus();
             void release_dataBus();
             void release_addressBus();
             void release_controlBus();  
             void write_controlBit(Z80bus_controlBits bit, bool state); 
             void write_dataBus(uint8_t data);
-            void write_addressBus(uint8_t address);
+            void write_addressBus(uint16_t address);
             uint8_t read_dataBus();
             uint16_t read_addressBus();    
 
