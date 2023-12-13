@@ -118,12 +118,11 @@ class HexRecord:
 # --------------------------------------------------------------------------------------
 def findCommunicationPport():
     # Collect comport information
-    # Check if port can be opened, and the Z80 board responds to the request (happens only when it is in boot mode)
-    comport = ""
+    # Check if port can be opened, and the Z80 board responds to the request (happens only when it is in boot mode)    
     for port in serial.tools.list_ports.comports():
         try:
             #Open the next port. Will raise an exception if not accessible
-            com = serial.Serial(port.name, baudrate=115200, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, timeout=1)  # open serial port 
+            com = serial.Serial(port.device, baudrate=115200, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, timeout=1)  # open serial port 
             
             # Send welcome record to the board
             com.flush()
@@ -141,7 +140,7 @@ def findCommunicationPport():
                     character = com.read(1)
                     result = response.receiverUpdate(character.decode())
                     if (result == 1): 
-                        if ((response.type == 0xAA) and (response.payload[0] == 0xA1)): return port.name
+                        if ((response.type == 0xAA) and (response.payload[0] == 0xA1)): return port.device
             
         #exception happened, just move to the next port 
         except Exception as e:
