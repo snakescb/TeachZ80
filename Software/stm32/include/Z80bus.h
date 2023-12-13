@@ -11,7 +11,6 @@
 
     #include <Arduino.h>
 
-    #define IOREQ_SERVED
     #define IOREQ_PORT  0x60
 
     class Z80bus {

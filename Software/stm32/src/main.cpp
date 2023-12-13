@@ -11,7 +11,7 @@
 #include <FlashLoader.h>
 
 /* Types and definitions -------------------------------------------------------------------------------- */
-#define FLASH_MODE_DEACTIVATION_TIME_S  2
+#define FLASH_MODE_DEACTIVATION_TIME_S  10
 
 enum ApplicationState : byte { Idle, FlashMode };
 
@@ -43,27 +43,31 @@ void setup() {
 	}
 
 	z80bus.resetZ80();
-	delay(1000);
+	delay(500);
 	statusLed.set(1, 3998);
 }
 
 /* Main loop -------------------------------------------------------------------------------------------- */
 void loop() {
    
+	//Process modules
    	z80bus.process();
 	flashloader.process();
    	statusLed.process();
    	button.process();
 
-	static uint32_t last;
-	static uint8_t address = 0;
+	//Reception of serial characters
+	int rx = Serial.read();
+	if (rx != -1) {
+		if (flashloader.flashmode == flashloader.active) flashloader.serialUpdate((uint8_t) rx);			
+	}
 
+	//state machine
 	switch (applicationState) {
 		case Idle: {
-			if (button.pushTrigger()) {
-				flashloader.setFlashMode(true);
-
+			if (button.pushTrigger()) {				
 				Serial.println("Entering Flash Mode");
+				flashloader.setFlashMode(true);				
 				statusLed.set(200, 200);
 				applicationState = FlashMode;	
 				appTiming = millis();			
@@ -72,10 +76,15 @@ void loop() {
    		}
 
     	case FlashMode: {
-			if (button.pushTrigger() || (millis() - appTiming > FLASH_MODE_DEACTIVATION_TIME_S*1000)) {
-
-				Serial.println("Exiting Flash Mode");
+			
+			if (button.pushTrigger()) {
+				Serial.println("Flash Mode Aborted");
 				flashloader.setFlashMode(false);	
+				statusLed.set(1, 3998);
+				applicationState = Idle;
+			}
+			else if (flashloader.flashmode == flashloader.inactive) {
+				Serial.println("Flash Mode completed");
 				statusLed.set(1, 3998);
 				applicationState = Idle;
 			}

@@ -6,6 +6,7 @@
 #define PORTA_BUS_LINES_IN_USE      0xF9C7    //on port A pins 0,1,2,6,7,8,11,12,13,14,15 are used by the bus
 #define PORTA_DATA_LINES_IN_USE     0x00C7    //on port A pins 0,1,2,6,7 are used by the data bus
 #define PORTA_CONTROL_LINES_IN_USE  0xF900    //on port A pins 8,11,12,13,14,15 are used by the control bus
+#define PORTA_CONTROL_LINES_IN_USE_EX_RESET  0xF100  //same, but excluding reset
 
 #define PORTB_BUS_LINES_IN_USE      0xFFFF    //on port B all pins are used by the bus
 #define PORTB_ADDRESS_LINES_IN_USE  0xFFFF    //on port B all pins are used by the address bus
@@ -48,8 +49,7 @@
  process, run in main loop (polling mode)
 ---------------------------------------------------------------------------------------------------------*/
 void Z80bus::process(void) {
-    
-#ifdef IOREQ_SERVED
+
     //check if there is an active IOREQ from the Z80
     //if so, check if it is for this device (on TeachZ80 only addresses 0x6x can be used by the stm32)
     if ((busmode == passive) && (!IOREQ_IS_HIGH) && (!M1_IS_HIGH)) { 
@@ -61,7 +61,6 @@ void Z80bus::process(void) {
             if (!RD_IS_HIGH) Serial.printf("IOREQ READ received to register %d\r\n", ioregister);
         }
     }
-#endif
 
 }
 
@@ -111,18 +110,19 @@ Z80bus::Z80bus(void) {
 reset Z80
 ---------------------------------------------------------------------------------------------------------*/
 void Z80bus::resetZ80() {
-    RESET_CLR;
-    delay(2);
     RESET_SET;
+    delay(20);
+    RESET_CLR;
 }
 
 /*--------------------------------------------------------------------------------------------------------
 set/release a specific control bit
 ---------------------------------------------------------------------------------------------------------*/
-void Z80bus::write_controlBit(Z80bus_controlBits bit, bool state) {
-    if (busmode == passive) return;
+void Z80bus::write_controlBit(Z80bus_controlBits bit, bool state) {    
     if ((bit == reset) &&  state) RESET_SET;
     if ((bit == reset) && !state) RESET_CLR;
+
+    if (busmode == passive) return;
     if ((bit == ioreq) &&  state) IOREQ_SET;
     if ((bit == ioreq) && !state) IOREQ_CLR;
     if ((bit == mreq ) &&  state) MREQ_SET;
@@ -140,6 +140,7 @@ void Z80bus::write_controlBit(Z80bus_controlBits bit, bool state) {
 ---------------------------------------------------------------------------------------------------------*/
 bool Z80bus::request_bus(){
     if (busmode != passive) return false;
+    release_bus();
     BUSREQ_CLR;
     busmode = active;
     return true;
@@ -196,7 +197,7 @@ void Z80bus::release_addressBus() {
 }
 
 void Z80bus::release_controlBus() {
-    GPIOA->BSRR = PORTA_CONTROL_LINES_IN_USE;
+    GPIOA->BSRR = PORTA_CONTROL_LINES_IN_USE_EX_RESET;
     GPIOH->BSRR = PORTH_CONTROL_LINES_IN_USE;
 }
 

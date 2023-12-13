@@ -18,17 +18,20 @@
  Flashing always must be enabled by the mode button. When flash mode is entered, simple flash command
  packets in Intel HEX format can be sent through the serial port. 
  See here: https://en.wikipedia.org/wiki/Intel_HEX
- Supported is the HEX-80 recordset, so record types 00 (data) and 01 (end of file)
- Record type 0xB0 is used to send confirmation data back to the host after every received command
+ Supported is the HEX-80 recordset, so record types 00 (data) and 01 (end of file). 
+ Recordtype AA is used for host communication
 
  When a data record is received:
-    - If the record is not valid (eg wrong checksum) a hex record 0xB0 to address 0x00 and 1 data byte is sent, 0xE0 (Error 0)
+    - If the record is not valid (eg wrong checksum) a hex record 0xAA to address 0x00 and 1 data byte is sent, 0xE0 (Error 0)
     - If the record is accepted
-        - If it is the first record after entering the flash mode, step 1, 2 and 3 are performed
+        - If it is the first data record after entering the flash mode, step 1, 2 and 3 are performed
         - The received bytes are stored in the flash chip starting with the provided address
         - when completed, the written bytes are verified
-        - If the verification is correct, a hex record 0xB0 to address 0x00 and 1 data byte is sent, 0xA0 (Acknowledge 0) 
-        - If the verification is incorrect, a hex record 0xB0 to address 0x00 and 1 data byte is sent, 0xE1 (Error 1) 
+        - If the verification is correct, a hex record 0xAA to address 0x00 and 1 data byte is sent, 0xA0 (Acknowledge 0) 
+        - If the verification is incorrect, a hex record 0xAA to address 0x00 and 1 data byte is sent, 0xE1 (Error 1) 
+        - Host can send record 0xAA, address 0, 1 byte 0xF0 (Function 0). This will be responded with 0xAA, address 0, 1 byte 0xA1 (Acknowledge 1)
+          This is used by the host python script to check if the board is responding on a selected communication port   
+        - An end of file record will be responded with 0xAA, address 0, 1 byte 0xA1 (Acknowledge 1), followed by stopping the flash mode
 
  When a end of file record is received
     - The Z80 address, data and control bus is released
@@ -45,25 +48,27 @@
     #include <Arduino.h>
     #include <Z80bus.h>    
 
+    #define FLASHLOADER_MAX_WAITIME_s 5
+
     class FlashLoader {
-
-        enum flashMode: uint8_t { active, inactive }; 
-        flashMode flashmode;
-
+            
         public:
+            enum flashMode: uint8_t { active, inactive }; 
+            flashMode flashmode;
+
             FlashLoader(Z80bus bus);    
             void process(void); 
             void serialUpdate(uint8_t c); 
             void setFlashMode(bool enable_nDisable = true);
 
-        private:
+        private:            
             Z80bus z80bus;
-            bool flashIsErased;
-            void flashDelay(uint16_t count);
+            uint32_t timer;
+            uint16_t hexCounter;
             void readChipIndentification();
             uint8_t readByte(uint16_t address);            
             void writeByte(uint16_t address, uint8_t data);
-            void singleWrite(uint16_t address, uint8_t data);
+            void singleByteWrite(uint16_t address, uint8_t data);
             void eraseFlash();
 
     };
