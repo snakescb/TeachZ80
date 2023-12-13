@@ -9,7 +9,9 @@
 ;############################################################################
 ; STARTING HERE, WE ARE RUNNING FROM FLASH
 ;############################################################################   
-ld      hl,0x0000                       ; initialize hl with 0
+    ld      hl,0x0000                       ; initialize hl with 0
+    ld      a, 0                            ; load a with 0
+    out     (gpio_out_1), a                  ; turn off gpio LED's
 
 main:
     ;turn the LED on (disk led is inverted)
