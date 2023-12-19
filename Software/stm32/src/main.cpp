@@ -38,6 +38,7 @@ FlashLoader flashloader(z80bus);
 Console console;
 Config config;
 
+
 /*#########################################################################################################
  Main Program
 ##########################################################################################################*/
@@ -75,14 +76,10 @@ void loop() {
 
 	//Reception of serial characters
 	int rx = Serial.read();
-	if (rx != -1) {
-		if (applicationState == Idle) console.serialUpdate((uint8_t) rx);
-		if (applicationState == FlashMode) flashloader.serialUpdate((uint8_t) rx);			
-	}
-
 	//state machine
 	switch (applicationState) {
 		case Idle: {
+			if (rx != -1) console.serialUpdate((uint8_t) rx);
 			if (button.pushTrigger() || (flashloader.flashmode == flashloader.active)) {		
 				if (flashloader.flashmode == flashloader.inactive) flashloader.setFlashMode(true);			
 				statusLed.set(FLASHMODE_LED_ON_PERIOD, FLASHMODE_LED_OFF_PERIOD);
@@ -92,6 +89,7 @@ void loop() {
    		}
 
     	case FlashMode: {			
+			if (rx != -1) flashloader.serialUpdate((uint8_t) rx);
 			if (button.pushTrigger() || (flashloader.flashmode == flashloader.inactive)) {
 				if (flashloader.flashmode == flashloader.active) flashloader.setFlashMode(false);	
 				statusLed.set(IDLE_LED_ON_PERIOD, IDLE_LED_OFF_PERIOD);

@@ -92,7 +92,36 @@ Z80bus::Z80bus(void) {
     release_bus();
 
     //setup iroeq interrupt
-    //attachInterrupt(IOREQ_60_pin, Z80bus::ioreq_handler, FALLING);
+    HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(SysTick_IRQn, 1, 0);
+    attachInterrupt(IOREQ_60_pin, 0, FALLING);
+}
+
+/*--------------------------------------------------------------------------------------------------------
+EXTI interrupt handler to handle IORequests
+To be as fast as possible, change interupt priority through HAL
+Also, avoid the HAL / Arduino default handlers to be called, by redefining EXTI9_5_IRQHandler
+
+On V1.0 / V1.1 boards with the stm32l433, reading iorequests works reliably until 6MHz only
+
+Requires to add __weak to void EXTI9_5_IRQHandler(void) in
+(user folder)\.platformio\packages\framework-arduinoststm32\libraries\SrcWrapper\src\stm32\interrupt.cpp
+---------------------------------------------------------------------------------------------------------*/
+extern IOreq ioReq;
+
+extern "C"  {   
+    void EXTI9_5_IRQHandler(void){
+        uint16_t gpioB = GPIOB->IDR;
+        uint16_t gpioA = GPIOA->IDR;
+        uint16_t gpioC = GPIOC->IDR;
+
+        uint8_t data = (gpioA & PORTA_DATA_LINES_IN_USE) | ((gpioC & PORTC_DATA_LINES_IN_USE) >> 10);           
+        ioReq.ioreqHandler(gpioB & 0xFF, data);
+
+        //reset the interrupt flag
+        EXTI->PR1 = EXTI_PR1_PIF8; 
+
+    }
 }
 
 /*--------------------------------------------------------------------------------------------------------
@@ -111,27 +140,6 @@ void Z80bus::controlPinsActiveDrive(bool enable) {
         GPIOH->OTYPER = setPortBits(GPIOH->OTYPER, PORTH_BUS_LINES_IN_USE, 0x01, false);
     }
 }
-
-/*--------------------------------------------------------------------------------------------------------
-Static IOREQ interrupt handler - be quick!
-Somebody sure can make this better
----------------------------------------------------------------------------------------------------------*/
-extern IOreq ioReq;
-
-void STM32_INT_EXTI5_9(void) {
-
-  ioReq.ioreqHandler(100, 0);
-
-}
-
-void Z80bus::ioreq_handler(void) {    
-    uint16_t address = GPIOB->IDR;
-    uint16_t dataA = GPIOA->IDR;
-    uint16_t dataC = GPIOC->IDR;
-    uint8_t data = (dataA & PORTA_DATA_LINES_IN_USE) | ((dataC & PORTC_DATA_LINES_IN_USE) >> 10);
-    ioReq.ioreqHandler(GPIOB->IDR & 0xFF, data);
-}
-
 
 /*--------------------------------------------------------------------------------------------------------
 reset Z80

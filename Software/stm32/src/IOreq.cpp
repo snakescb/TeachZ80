@@ -14,6 +14,6 @@ IOreq::IOreq() {
 ---------------------------------------------------------------------------------------------------------*/
 void IOreq::ioreqHandler(uint16_t address, uint8_t data) {
     counter++;
-    Serial.printf("Counter: %u - Address: %u - Data: %u\r\n", counter, address, data);
+    //Serial.printf("Counter: %u - Address: %u - Data: %u\r\n", counter, address, data);
 }
   
