@@ -144,7 +144,6 @@ def findCommunicationPport():
             
         #exception happened, just move to the next port 
         except Exception as e:
-            #print(f"{com.name} - Exception: {e}")
             pass
         
     #no port fount
@@ -245,10 +244,9 @@ try:
                     loopCount = 100
 
         if (recordConfirmed): 
-            time.sleep(0.2)
             print("CONFIRMED")            
         else: 
-            print("ERROR") 
+            print("ERROR\r\n") 
             printAndExit("ERROR: VALIDATION failed")      
         
 except Exception as e:
