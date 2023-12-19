@@ -72,12 +72,12 @@ halt_loop:
 ; Print all printable characters once on SIO A
 ;##############################################################
 spew:
-    ld      b,0x20      ; ascii space character
+    ld      c,0x20      ; ascii space character
 spew_loop:
     call    sioa_tx_char
-    inc     b
+    inc     c
     ld      a,0x7f      ; last graphic character + 1
-    cp      b
+    cp      c
     jp      nz,spew_loop
     ret
 
@@ -86,24 +86,14 @@ spew_loop:
 ;##############################################################
 echo:
     call    sioa_rx_char    ; get a character from the SIO
-    ld      b,a
+    ld      c,a
     call    sioa_tx_char    ; print the character
     jp      echo
-
-;##############################################################
-; Prints a new line
-;##############################################################
-crlf:
-    ld      b,'\r'
-    call    sioa_tx_char    ; print the character
-    ld      b,'\n'
-    jp      sioa_tx_char    ; print the character
-    
 
 ;****************************************************************************
 ; String Messages 
 ;****************************************************************************
-helloWorld: db "\r\n\r\nHello World - This is TeachZ80\r\nThis is the code I currently execute:\r\n\0"
+helloWorld: db "\r\n\r\nHello World - TeachZ80 speaking - Well done!\r\n\r\nThis is the code I currently execute:\r\n\0"
 alphabet:   db "\r\nAnd here the printable ASCII characters:\r\n\0"
 echostring: db "\r\n\r\nI will now echo whatever you type:\r\n\0"
 
