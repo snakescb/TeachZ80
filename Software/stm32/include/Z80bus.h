@@ -10,19 +10,15 @@
 #define Z80BUS_H
 
     #include <Arduino.h>
+    #include <IOreq.h>
 
-    #define IOREQ_PORT  0x60
-
-    class Z80bus {
-
-        enum Z80bus_mode { passive, active, ioreq_read, ioreq_write };
+    class Z80bus {                     
               
-        public:            
-            enum Z80bus_controlBits { reset, ioreq, mreq, rd, wr };
+        public:    
+            enum Z80bus_controlBits { reset, ioreq, mreq, rd, wr, wait };   
 
             Z80bus(void);    
-            void resetZ80();
-            void process(void);      
+            void resetZ80();     
             bool request_bus();
             void release_bus();
             void release_dataBus();
@@ -32,11 +28,15 @@
             void write_dataBus(uint8_t data);
             void write_addressBus(uint16_t address);
             uint8_t read_dataBus();
-            uint16_t read_addressBus();    
+            uint16_t read_addressBus();   
 
-        private:
+        private:         
+            enum Z80bus_mode { passive, active }; 
+
             Z80bus_mode busmode;                                              
-            uint32_t setPortBits(uint32_t portregister, uint32_t pinsInUnse, uint32_t bitalue, bool twoBits);   
+            uint32_t setPortBits(uint32_t portregister, uint32_t pinsInUnse, uint32_t bitalue, bool twoBits);  
+            void controlPinsActiveDrive(bool enable);
+            static void ioreq_handler(void);
 
     };
 

@@ -6,7 +6,7 @@
 #define PORTA_BUS_LINES_IN_USE      0xF9C7    //on port A pins 0,1,2,6,7,8,11,12,13,14,15 are used by the bus
 #define PORTA_DATA_LINES_IN_USE     0x00C7    //on port A pins 0,1,2,6,7 are used by the data bus
 #define PORTA_CONTROL_LINES_IN_USE  0xF900    //on port A pins 8,11,12,13,14,15 are used by the control bus
-#define PORTA_CONTROL_LINES_IN_USE_EX_RESET  0xF100  //same, but excluding reset
+#define PORTA_CONTROL_LINES_EX_RES  0xF100  //same, but excluding reset line
 
 #define PORTB_BUS_LINES_IN_USE      0xFFFF    //on port B all pins are used by the bus
 #define PORTB_ADDRESS_LINES_IN_USE  0xFFFF    //on port B all pins are used by the address bus
@@ -17,20 +17,25 @@
 #define PORTH_BUS_LINES_IN_USE      0x0003    //on port H pin 0,1 are used by the bus
 #define PORTH_CONTROL_LINES_IN_USE  0x0003    //on port H pin 0,1 are used by the control bus
 
+//special pin definitions
+#define IOREQ_60_pin     PA8
+
+//timings
+#define RESET_PULSE_LEN_ms  50
+
 //makros for reading control lines
 #define WR_IS_HIGH       (GPIOA->IDR & GPIO_PIN_13)
 #define RD_IS_HIGH       (GPIOA->IDR & GPIO_PIN_12)
-#define WAIT_IS_HIGH     (GPIOA->IDR & GPIO_PIN_8)
+#define WAIT_IS_HIGH     (GPIOH->IDR & GPIO_PIN_1)
 #define MREQ_IS_HIGH     (GPIOA->IDR & GPIO_PIN_14)
 #define IOREQ_IS_HIGH    (GPIOA->IDR & GPIO_PIN_15)
 #define BUSREQ_IS_HIGH   (GPIOH->IDR & GPIO_PIN_0)
-#define M1_IS_HIGH       (GPIOH->IDR & GPIO_PIN_1)
 #define RESET_IS_HIGH    (GPIOA->IDR & GPIO_PIN_11)
 
 //makros for setting control lines
 #define WR_SET           GPIOA->BSRR = GPIO_PIN_13
 #define RD_SET           GPIOA->BSRR = GPIO_PIN_12
-#define WAIT_SET         GPIOA->BSRR =  GPIO_PIN_8
+#define WAIT_SET         GPIOH->BSRR = GPIO_PIN_1
 #define MREQ_SET         GPIOA->BSRR = GPIO_PIN_14
 #define IOREQ_SET        GPIOA->BSRR = GPIO_PIN_15
 #define BUSREQ_SET       GPIOH->BSRR = GPIO_PIN_0
@@ -39,35 +44,16 @@
 //makros for clearing (asserting) control lines
 #define WR_CLR           GPIOA->BSRR = GPIO_PIN_13 << 16
 #define RD_CLR           GPIOA->BSRR = GPIO_PIN_12 << 16
-#define WAIT_CLR         GPIOA->BSRR =  GPIO_PIN_8 << 16
+#define WAIT_CLR         GPIOH->BSRR = GPIO_PIN_1 << 16
 #define MREQ_CLR         GPIOA->BSRR = GPIO_PIN_14 << 16
 #define IOREQ_CLR        GPIOA->BSRR = GPIO_PIN_15 << 16
 #define BUSREQ_CLR       GPIOH->BSRR = GPIO_PIN_0 << 16
 #define RESET_CLR        GPIOA->BSRR = GPIO_PIN_11 << 16
 
 /*--------------------------------------------------------------------------------------------------------
- process, run in main loop (polling mode)
----------------------------------------------------------------------------------------------------------*/
-void Z80bus::process(void) {
-
-    //check if there is an active IOREQ from the Z80
-    //if so, check if it is for this device (on TeachZ80 only addresses 0x6x can be used by the stm32)
-    if ((busmode == passive) && (!IOREQ_IS_HIGH) && (!M1_IS_HIGH)) { 
-        uint16_t address = read_addressBus();
-        if (address & 0x00F0 == IOREQ_PORT) {
-            uint8_t ioregister = address & 0x000F;
-            //check read or write access
-            if (!WR_IS_HIGH) Serial.printf("IOREQ WRITE received to register %d\r\n", ioregister);
-            if (!RD_IS_HIGH) Serial.printf("IOREQ READ received to register %d\r\n", ioregister);
-        }
-    }
-
-}
-
-/*--------------------------------------------------------------------------------------------------------
  Constructor
 ---------------------------------------------------------------------------------------------------------*/
-Z80bus::Z80bus(void) {
+Z80bus::Z80bus(void) { 
     //I/O ports initialization
     //all lines required by the bus need to be open drain outputs, they have external pull ups to 5v
     busmode = passive;
@@ -104,14 +90,55 @@ Z80bus::Z80bus(void) {
 
     //release all lines
     release_bus();
+
+    //setup iroeq interrupt
+    //attachInterrupt(IOREQ_60_pin, Z80bus::ioreq_handler, FALLING);
 }
+
+/*--------------------------------------------------------------------------------------------------------
+This function enable or disables push-pull on the control pins (excluding reset). 
+This is required for consistent memory programming
+---------------------------------------------------------------------------------------------------------*/
+void Z80bus::controlPinsActiveDrive(bool enable) {
+    if (enable) {
+        // 0x00 in OTYPER (1 bit per pin) sets the port pin to push-pull
+        GPIOA->OTYPER = setPortBits(GPIOA->OTYPER, PORTA_CONTROL_LINES_EX_RES, 0x00, false);
+        GPIOH->OTYPER = setPortBits(GPIOH->OTYPER, PORTH_BUS_LINES_IN_USE, 0x00, false);
+    }
+    else {
+        // 0x01 in OTYPER (1 bit per pin) sets the port pin to open-drain
+        GPIOA->OTYPER = setPortBits(GPIOA->OTYPER, PORTA_CONTROL_LINES_EX_RES, 0x01, false);
+        GPIOH->OTYPER = setPortBits(GPIOH->OTYPER, PORTH_BUS_LINES_IN_USE, 0x01, false);
+    }
+}
+
+/*--------------------------------------------------------------------------------------------------------
+Static IOREQ interrupt handler - be quick!
+Somebody sure can make this better
+---------------------------------------------------------------------------------------------------------*/
+extern IOreq ioReq;
+
+void STM32_INT_EXTI5_9(void) {
+
+  ioReq.ioreqHandler(100, 0);
+
+}
+
+void Z80bus::ioreq_handler(void) {    
+    uint16_t address = GPIOB->IDR;
+    uint16_t dataA = GPIOA->IDR;
+    uint16_t dataC = GPIOC->IDR;
+    uint8_t data = (dataA & PORTA_DATA_LINES_IN_USE) | ((dataC & PORTC_DATA_LINES_IN_USE) >> 10);
+    ioReq.ioreqHandler(GPIOB->IDR & 0xFF, data);
+}
+
 
 /*--------------------------------------------------------------------------------------------------------
 reset Z80
 ---------------------------------------------------------------------------------------------------------*/
 void Z80bus::resetZ80() {
     RESET_SET;
-    delay(20);
+    delay(RESET_PULSE_LEN_ms);
     RESET_CLR;
 }
 
@@ -119,31 +146,20 @@ void Z80bus::resetZ80() {
 set/release a specific control bit
 ---------------------------------------------------------------------------------------------------------*/
 void Z80bus::write_controlBit(Z80bus_controlBits bit, bool state) {    
-    if ((bit == reset) &&  state) RESET_SET;
-    if ((bit == reset) && !state) RESET_CLR;
-
+    //reset can be controlled anytime, other lines only when bus is actively controlled
+    if ((bit == reset ) &&  state) RESET_SET;
+    if ((bit == reset ) && !state) RESET_CLR;
     if (busmode == passive) return;
-    if ((bit == ioreq) &&  state) IOREQ_SET;
-    if ((bit == ioreq) && !state) IOREQ_CLR;
-    if ((bit == mreq ) &&  state) MREQ_SET;
-    if ((bit == mreq ) && !state) MREQ_CLR;
-    if ((bit == rd   ) &&  state) RD_SET;
-    if ((bit == rd   ) && !state) RD_CLR;
-    if ((bit == wr   ) &&  state) WR_SET;
-    if ((bit == wr   ) && !state) WR_CLR;
-}
-
-/*--------------------------------------------------------------------------------------------------------
- request access to bus. returns false if bus is already active
- does not wait for Z80 to assert the busack line. It may be possible there is no CPU. Also, the CPU will
- always release the bus according the datasheet with high priority
----------------------------------------------------------------------------------------------------------*/
-bool Z80bus::request_bus(){
-    if (busmode != passive) return false;
-    release_bus();
-    BUSREQ_CLR;
-    busmode = active;
-    return true;
+    if ((bit == ioreq ) &&  state) IOREQ_SET;
+    if ((bit == ioreq ) && !state) IOREQ_CLR;
+    if ((bit == mreq  ) &&  state) MREQ_SET;
+    if ((bit == mreq  ) && !state) MREQ_CLR;
+    if ((bit == rd    ) &&  state) RD_SET;
+    if ((bit == rd    ) && !state) RD_CLR;
+    if ((bit == wr    ) &&  state) WR_SET;
+    if ((bit == wr    ) && !state) WR_CLR;
+    if ((bit == wait  ) &&  state) WAIT_SET;
+    if ((bit == wait  ) && !state) WAIT_CLR;
 }
 
 /*--------------------------------------------------------------------------------------------------------
@@ -177,9 +193,25 @@ uint16_t Z80bus::read_addressBus() {
 }
 
 /*--------------------------------------------------------------------------------------------------------
+ request access to bus. returns false if bus is already active
+ does not wait for Z80 to assert the busack line. It may be possible there is no CPU. Also, the CPU will
+ always release the bus according the datasheet with high priority
+---------------------------------------------------------------------------------------------------------*/
+bool Z80bus::request_bus(){
+    if (busmode != passive) return false;
+    release_bus();
+    BUSREQ_CLR;
+    delayMicroseconds(10);
+    controlPinsActiveDrive(true);
+    busmode = active;
+    return true;
+}
+
+/*--------------------------------------------------------------------------------------------------------
  Bus release functions - set output pins high (release pins)
 ---------------------------------------------------------------------------------------------------------*/
 void Z80bus::release_bus() {
+    controlPinsActiveDrive(false);
     release_dataBus();
     release_addressBus();
     release_controlBus();
@@ -197,7 +229,7 @@ void Z80bus::release_addressBus() {
 }
 
 void Z80bus::release_controlBus() {
-    GPIOA->BSRR = PORTA_CONTROL_LINES_IN_USE_EX_RESET;
+    GPIOA->BSRR = PORTA_CONTROL_LINES_EX_RES;
     GPIOH->BSRR = PORTH_CONTROL_LINES_IN_USE;
 }
 

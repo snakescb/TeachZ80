@@ -6,24 +6,37 @@
 #include <Arduino.h>
 #include <Led.h>
 #include <Button.h>
+#include <Console.h>
 #include <Si5153.h>
 #include <Z80bus.h>
+#include <IOreq.h>
 #include <FlashLoader.h>
+#include <Config.h>
 
 /* Types and definitions -------------------------------------------------------------------------------- */
-#define FLASH_MODE_DEACTIVATION_TIME_S  10
+// Startup delay
+#define STARTUP_DELAY_ms	 500
+
+// In idle, one quick blink every 5 seconds
+#define IDLE_LED_ON_PERIOD		1
+#define IDLE_LED_OFF_PERIOD  4999
+
+// In Flash Mode, one second blinks
+#define FLASHMODE_LED_ON_PERIOD	  500
+#define FLASHMODE_LED_OFF_PERIOD  500
 
 enum ApplicationState : byte { Idle, FlashMode };
 
 /* Variables and instances ------------------------------------------------------------------------------ */
-ApplicationState applicationState = Idle;
+ApplicationState applicationState ;
 Led statusLed(PA4);
 Button button(PH3);
 Si5153 clock(PA3, PA5);
+IOreq ioReq;
 Z80bus z80bus;
 FlashLoader flashloader(z80bus);
-
-uint32_t appTiming;
+Console console;
+Config config;
 
 /*#########################################################################################################
  Main Program
@@ -36,22 +49,26 @@ void setup() {
 	Serial.begin(115200);
 	statusLed.on();
 
+	if (!config.read()) config.defaults();
+
 	if (clock.begin()) {	
-		clock.configureChannel(0, 10000000, 1, 0); //10.000 MHz System Cock
-		clock.configureChannel(1, 1843200, 1, 1);  //1.8432 MHZ Clock SIOA
-		clock.configureChannel(2, 1843200, 1, 1);  //1.8432 MHZ Clock SIOA
+		clock.configureChannel(0, config.configdata.clock.z80Clock, clock.DIV1, clock.PLLA, clock.ENABLE);   //10.000 MHz System Cock
+		clock.configureChannel(1, config.configdata.clock.sioaClock, clock.DIV1, clock.PLLB, clock.ENABLE);  //1.8432 MHZ Clock SIOA
+		clock.configureChannel(2, config.configdata.clock.siobClock, clock.DIV1, clock.PLLB, clock.ENABLE);  //1.8432 MHZ Clock SIOB
 	}
 
+	console.begin();
 	z80bus.resetZ80();
-	delay(500);
-	statusLed.set(1, 3998);
+	delay(STARTUP_DELAY_ms);
+
+	applicationState = Idle;
+	statusLed.set(IDLE_LED_ON_PERIOD, IDLE_LED_OFF_PERIOD);
 }
 
 /* Main loop -------------------------------------------------------------------------------------------- */
 void loop() {
    
 	//Process modules
-   	z80bus.process();
 	flashloader.process();
    	statusLed.process();
    	button.process();
@@ -59,41 +76,30 @@ void loop() {
 	//Reception of serial characters
 	int rx = Serial.read();
 	if (rx != -1) {
-		if (flashloader.flashmode == flashloader.active) flashloader.serialUpdate((uint8_t) rx);			
+		if (applicationState == Idle) console.serialUpdate((uint8_t) rx);
+		if (applicationState == FlashMode) flashloader.serialUpdate((uint8_t) rx);			
 	}
 
 	//state machine
 	switch (applicationState) {
 		case Idle: {
-			if (button.pushTrigger()) {				
-				Serial.println("Entering Flash Mode");
-				flashloader.setFlashMode(true);				
-				statusLed.set(200, 200);
-				applicationState = FlashMode;	
-				appTiming = millis();			
+			if (button.pushTrigger() || (flashloader.flashmode == flashloader.active)) {		
+				if (flashloader.flashmode == flashloader.inactive) flashloader.setFlashMode(true);			
+				statusLed.set(FLASHMODE_LED_ON_PERIOD, FLASHMODE_LED_OFF_PERIOD);
+				applicationState = FlashMode;			
 			}
 			break;
    		}
 
-    	case FlashMode: {
-			
-			if (button.pushTrigger()) {
-				Serial.println("Flash Mode Aborted");
-				flashloader.setFlashMode(false);	
-				statusLed.set(1, 3998);
-				applicationState = Idle;
-			}
-			else if (flashloader.flashmode == flashloader.inactive) {
-				Serial.println("Flash Mode completed");
-				statusLed.set(1, 3998);
+    	case FlashMode: {			
+			if (button.pushTrigger() || (flashloader.flashmode == flashloader.inactive)) {
+				if (flashloader.flashmode == flashloader.active) flashloader.setFlashMode(false);	
+				statusLed.set(IDLE_LED_ON_PERIOD, IDLE_LED_OFF_PERIOD);
 				applicationState = Idle;
 			}
 			break;
    		}
-    
-   		default: break;
    	}
-
 }
 
 /* -------------------------------------------------------------------------------------------------------

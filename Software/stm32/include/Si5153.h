@@ -29,15 +29,21 @@
 
     class Si5153 {
         public:
+
+            enum pll: uint8_t { PLLA = 0, PLLB = 1};
+            enum divider: uint8_t { DIV1 = 1, DIV2 = 2, DIV4 = 4, DIV8 = 8, DIV16 = 16, DIV32 = 32, DIV64 = 64, DIV129 = 128 };
+            enum enable: uint8_t { ENABLE = 1, DISABLE = 0};
+
             Si5153(uint8_t sda, uint8_t scl, uint8_t i2cDeviceAddress = SI5351_I2C_ADDRESS);
             bool begin();
             bool configureChannel(uint8_t channel, unsigned long freqOut, uint8_t divider=1, uint8_t pll=0, bool enabled=true);    
-            void scanBus(uint8_t firstAddr = 0, uint8_t lastAddr = 0x7F);     
-            void beginPremadeConfig();   
+            void scanBus(uint8_t firstAddr = 0, uint8_t lastAddr = 0x7F);      
+            unsigned long getCurrentClock(uint8_t channel);
 
         private:
             uint8_t i2caddr, i2cdata[SI5351_I2C_BUFSIZE];
             unsigned long p1, p2, p3, r0;
+            unsigned long clocks[8];
             SoftWire i2cbus;
             void i2c_init();
             bool i2c_writeRegister(uint8_t regaddr, uint8_t regbyte);

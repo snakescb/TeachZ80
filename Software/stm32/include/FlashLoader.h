@@ -46,30 +46,35 @@
 #define FLASHLOADER_H
 
     #include <Arduino.h>
-    #include <Z80bus.h>    
-
-    #define FLASHLOADER_MAX_WAITIME_s 5
+    #include <Z80bus.h> 
+    #include <HexRecord.h>       
 
     class FlashLoader {
             
         public:
             enum flashMode: uint8_t { active, inactive }; 
             flashMode flashmode;
+            uint8_t chipVendorId;
+            uint8_t chipDeviceId;
 
             FlashLoader(Z80bus bus);    
             void process(void); 
             void serialUpdate(uint8_t c); 
             void setFlashMode(bool enable_nDisable = true);
+            bool writeTestProgram(uint8_t programNumber);
+            uint32_t bytesProgrammed(void);
+            uint8_t readByte(uint16_t address); 
+            void eraseFlash();   
+            void readChipIndentification();            
 
         private:            
             Z80bus z80bus;
             uint32_t timer;
             uint16_t hexCounter;
-            void readChipIndentification();
-            uint8_t readByte(uint16_t address);            
             void writeByte(uint16_t address, uint8_t data);
-            void singleByteWrite(uint16_t address, uint8_t data);
-            void eraseFlash();
+            void singleByteWrite(uint16_t address, uint8_t data);         
+            uint8_t txBuffer[HEX_RECORD_MAX_STRING_LEN];
+            HexRecord rxHex, txHex;
 
     };
 

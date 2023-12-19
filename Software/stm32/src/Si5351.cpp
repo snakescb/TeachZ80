@@ -1,5 +1,4 @@
 #include <Si5153.h>
-#include <Si5351A-RevB-Registers.h>
 
 /* Types and definitions -------------------------------------------------------------------------------- */  
 #define CHIP_STATUS              0
@@ -50,7 +49,7 @@ bool Si5153::begin() {
             set_frequencyRegisters(SYNTH_PLL_A);
             set_frequencyRegisters(SYNTH_PLL_B);
             
-            Serial.println("Si5351: Initialization complete");
+            //Serial.println("Si5351: Initialization complete");
             return true;
         }
         else delay(10);
@@ -73,8 +72,8 @@ bool Si5153::configureChannel(uint8_t channel, unsigned long freqOut, uint8_t di
     if ((divider == 0) || (divider > 128)) { Serial.println("Si5351: Invalid divider received in configuration"); return false; }
 
     //check if output frequency can be achieved by multisynth alone (without divider)
-    if (freqOut > PLL_FREQ/8) { Serial.printf("Si5351: Requested frequency is too high. Maximum possible is %d\r\n", PLL_FREQ/8); return false; }
-    if (freqOut < PLL_FREQ/2048) { Serial.printf("Si5351: Requested frequency is too low. Minimum possible is %d\r\n", PLL_FREQ/2048); return false; }
+    if (freqOut > PLL_FREQ/8) { Serial.printf("Si5351: Requested frequency is too high. Maximum possible is %d Hz\r\n", PLL_FREQ/8); return false; }
+    if (freqOut < PLL_FREQ/2048) { Serial.printf("Si5351: Requested frequency is too low. Minimum possible is %d Hz\r\n", PLL_FREQ/2048); return false; }
 
     //disable channel
     //set OEB bit to disable channel
@@ -87,7 +86,8 @@ bool Si5153::configureChannel(uint8_t channel, unsigned long freqOut, uint8_t di
     i2c_writeRegister(CLK0_CONTROL+channel, CTRL_register);
 
     if (!enabled) {
-        Serial.printf("Si5351: Channel %d disabled\r\n", channel);
+        clocks[channel] = 0;
+        //Serial.printf("Si5351: Channel %d disabled\r\n", channel);
         return true;
     }
 
@@ -102,10 +102,10 @@ bool Si5153::configureChannel(uint8_t channel, unsigned long freqOut, uint8_t di
     CTRL_register = (CTRL_register & 0x7F) | (pll < 5);
     i2c_writeRegister(CLK0_CONTROL+channel, CTRL_register);
 
-    unsigned long outfreqfull = freqOut / 1000000;
-    unsigned long outfreqrem  = (freqOut -  outfreqfull*1000000) / 100;
-
-    Serial.printf("Si5351: Clock %d configured to %01d.%04d MHz and enabled\r\n", channel, outfreqfull, outfreqrem);
+    clocks[channel] = freqOut;
+    //unsigned long outfreqfull = freqOut / 1000000;
+    //unsigned long outfreqrem  = (freqOut -  outfreqfull*1000000) / 100;
+    //Serial.printf("Si5351: Clock %d configured to %01d.%04d MHz\r\n", channel, outfreqfull, outfreqrem);
     return true;
 }
 
@@ -150,12 +150,10 @@ bool Si5153::set_frequencyRegisters(uint8_t baseRegister) {
 }
 
 /*--------------------------------------------------------------------------------------------------------
- apply premade config in include/Si5351A-RevB-Registers.h
+ getCurrentClock
 ---------------------------------------------------------------------------------------------------------*/
-void Si5153::beginPremadeConfig() {
-    i2c_init();
-
-    for (int i=0; i<SI5351A_REVB_REG_CONFIG_NUM_REGS; i++) i2c_writeRegister(si5351a_revb_registers[i].address & 0xFF, si5351a_revb_registers[i].value);
+unsigned long Si5153::getCurrentClock(uint8_t channel) {
+    return clocks[channel];
 }
 
 /*--------------------------------------------------------------------------------------------------------

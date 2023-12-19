@@ -1,16 +1,19 @@
 #include <FlashLoader.h>
-#include <HexRecord.h>
-#include <Z80TestProgram.h>
+#include <Z80TestPrograms.h>
 
 /* Types and definitions -------------------------------------------------------------------------------- */  
-#define BYTE_READ_SETUP_TIME_us     10
-#define BYTE_READ_PULSE_TIME_us     20
-#define BYTE_READ_HOLD_TIME_us      20
+// Timeout for automatic aborting flash mode
+#define FLASHLOADER_TIMEOUT_s       10
 
-#define BYTE_WRITE_SETUP_TIME_us    20
-#define BYTE_WRITE_PULSE_TIME_us    20
-#define BYTE_WRITE_HOLD_TIME_us     80
+//flash timings
+#define BYTE_WRITE_WAIT_TIME_us      25
+#define FLASH_ERASE_WIAT_TIME_ms    100
+#define BUS_STABILIZATION_TIME_us     1
+#define FLASH_ACCESS_PULSE_TIME_us    1
+#define FLASH_ACCESS_HOLD_TIME_us     1
+#define FLASH_IDMODE_ACCESS_TIME_us  10
 
+//Communication constants
 #define HEX_TYPE_COMMUNICATION      0xAA
 #define HEX_TYPE_DATA               0x00
 #define HEX_TYPE_END_OF_FILE        0x01
@@ -21,14 +24,13 @@
 #define HEX_MESSAGE_ACKNOWLEDGE_1   0xA1
 #define HEX_MESSAGE_FUNCTION_0      0xF0
 
-uint8_t txBuffer[HEX_RECORD_MAX_STRING_LEN];
-HexRecord rxHex, txHex;
-
 /*--------------------------------------------------------------------------------------------------------
  Constructor
 ---------------------------------------------------------------------------------------------------------*/
 FlashLoader::FlashLoader(Z80bus bus) : z80bus(bus) {
     flashmode = inactive;
+    chipVendorId = 0;
+    chipDeviceId = 0;
 }
 
 /*--------------------------------------------------------------------------------------------------------
@@ -37,7 +39,7 @@ FlashLoader::FlashLoader(Z80bus bus) : z80bus(bus) {
 void FlashLoader::process(void) {
 
     if ((flashmode == active) && (timer != 0)) {
-        if (millis() - timer > FLASHLOADER_MAX_WAITIME_s * 1000) setFlashMode(false);
+        if (millis() - timer > FLASHLOADER_TIMEOUT_s * 1000) setFlashMode(false);
     }
 
 }
@@ -75,23 +77,22 @@ void FlashLoader::serialUpdate(uint8_t c) {
             }
             //data message
             if (rxHex.type == HEX_TYPE_DATA) {
-                bool commandOK = true;
-
-                //if it is the first record received erase flash                
-                if (hexCounter == 0) eraseFlash();
-                hexCounter++;
                 //reset timer
                 timer = millis();
 
-                //write data to flash
-                for (int i=0; i<rxHex.payloadLength; i++) writeByte(rxHex.address + i, rxHex.payload[i]);
+                //if it is the first record received reset the board (to make sure flash is visible), and erase flash                
+                if (hexCounter == 0) eraseFlash();
+                hexCounter++;  
 
+                bool writeOK = true;                         
+                //write data to flash
+                for (int i=0; i<rxHex.payloadLength; i++) writeByte(rxHex.address + i, rxHex.payload[i]);                    
                 //verify data
-                for (int i=0; i<rxHex.payloadLength; i++) if(readByte(rxHex.address + i) != rxHex.payload[i]) commandOK = false;
+                for (int i=0; i<rxHex.payloadLength; i++) if(readByte(rxHex.address + i) != rxHex.payload[i]) writeOK = false;
 
                 //send response
                 uint8_t message = HEX_MESSAGE_ACKNOWLEDGE_1;
-                if (!commandOK) message = HEX_MESSAGE_ERROR_1;
+                if (!writeOK) message = HEX_MESSAGE_ERROR_1;
                 txHex.data(HEX_TYPE_COMMUNICATION, 0x0000, &message, 1);
                 uint8_t txLen = txHex.getString(txBuffer);
                 Serial.write(txBuffer, txLen);
@@ -107,8 +108,6 @@ void FlashLoader::serialUpdate(uint8_t c) {
                 
                 //stop flashmode, delay, and reset the Z80
                 setFlashMode(false);                
-                delay(10);
-                z80bus.resetZ80();
             }
 
             break;
@@ -123,19 +122,16 @@ void FlashLoader::serialUpdate(uint8_t c) {
 uint8_t FlashLoader::readByte(uint16_t address) {
     if (flashmode != active) return 0xFF;
 
-    z80bus.write_controlBit(z80bus.mreq, false);
     z80bus.write_addressBus(address);
-    delayMicroseconds(BYTE_READ_SETUP_TIME_us);
+    delayMicroseconds(BUS_STABILIZATION_TIME_us);
+    z80bus.write_controlBit(z80bus.mreq, false);
     z80bus.write_controlBit(z80bus.rd, false);
-    delayMicroseconds(BYTE_READ_PULSE_TIME_us);
+    delayMicroseconds(FLASH_ACCESS_PULSE_TIME_us);
     uint8_t data = z80bus.read_dataBus();
     z80bus.write_controlBit(z80bus.rd, true);
-    delayMicroseconds(BYTE_READ_HOLD_TIME_us);
-
     z80bus.write_controlBit(z80bus.mreq, true);
-    z80bus.release_addressBus();
-    delayMicroseconds(BYTE_READ_HOLD_TIME_us);
-
+    delayMicroseconds(FLASH_ACCESS_HOLD_TIME_us);
+    
     return data;
 }
 
@@ -143,13 +139,13 @@ uint8_t FlashLoader::readByte(uint16_t address) {
  single one byte write access to flash (without setting mreq, this is handled by the overlying function)
 ---------------------------------------------------------------------------------------------------------*/
 void FlashLoader::singleByteWrite(uint16_t address, uint8_t data) {
-    z80bus.write_addressBus(address);
     z80bus.write_dataBus(data);
-    delayMicroseconds(BYTE_WRITE_SETUP_TIME_us);
+    z80bus.write_addressBus(address);
+    delayMicroseconds(BUS_STABILIZATION_TIME_us);
     z80bus.write_controlBit(z80bus.wr, false);
-    delayMicroseconds(BYTE_WRITE_PULSE_TIME_us);
+    delayMicroseconds(FLASH_ACCESS_PULSE_TIME_us);
     z80bus.write_controlBit(z80bus.wr, true);
-    delayMicroseconds(BYTE_WRITE_HOLD_TIME_us);
+    delayMicroseconds(FLASH_ACCESS_HOLD_TIME_us);
 }
 
 /*--------------------------------------------------------------------------------------------------------
@@ -170,10 +166,10 @@ void FlashLoader::writeByte(uint16_t address, uint8_t data) {
     singleByteWrite(address, data);
     
     //disable chip and release bus
-    z80bus.write_controlBit(z80bus.mreq, true);
-    z80bus.release_addressBus();
+    z80bus.write_controlBit(z80bus.mreq, true);    
     z80bus.release_dataBus();
-    delayMicroseconds(BYTE_WRITE_HOLD_TIME_us);
+
+    delayMicroseconds(BYTE_WRITE_WAIT_TIME_us);
 }
 
 /*--------------------------------------------------------------------------------------------------------
@@ -191,24 +187,90 @@ void FlashLoader::eraseFlash() {
     singleByteWrite(0x5555, 0x80);
     singleByteWrite(0x5555, 0xAA);
     singleByteWrite(0x2AAA, 0x55);
-    singleByteWrite(0x5555, 0x10);
+    singleByteWrite(0x5555, 0x10);   
 
     //disable chip and release bus
     z80bus.write_controlBit(z80bus.mreq, true);
-    z80bus.release_addressBus();
     z80bus.release_dataBus();
-    delayMicroseconds(BYTE_WRITE_HOLD_TIME_us);
 
-    delay(100);
+    delay(FLASH_ERASE_WIAT_TIME_ms);
 }
 
+/*--------------------------------------------------------------------------------------------------------
+ Read Vendor and Chip ID from device - works in active mode only
+---------------------------------------------------------------------------------------------------------*/
+void FlashLoader::readChipIndentification() {
+    if (flashmode != active) return;
+
+    //enable chip
+    z80bus.write_controlBit(z80bus.mreq, false);    
+
+    //enter device identification mode
+    singleByteWrite(0x5555, 0xAA);
+    singleByteWrite(0x2AAA, 0x55);
+    singleByteWrite(0x5555, 0x90);
+    delayMicroseconds(FLASH_IDMODE_ACCESS_TIME_us);
+
+    //read ID's
+    z80bus.release_dataBus();
+    delayMicroseconds(BUS_STABILIZATION_TIME_us);
+    z80bus.write_controlBit(z80bus.rd, false);
+    z80bus.write_addressBus(0x0000);    
+    delayMicroseconds(FLASH_ACCESS_PULSE_TIME_us);
+    chipVendorId = z80bus.read_dataBus();
+    z80bus.write_addressBus(0x0001);
+    delayMicroseconds(FLASH_ACCESS_PULSE_TIME_us);
+    chipDeviceId = z80bus.read_dataBus();
+    z80bus.write_controlBit(z80bus.rd, true);
+    delayMicroseconds(FLASH_ACCESS_HOLD_TIME_us);
+
+    //exit device id mode
+    singleByteWrite(0x5555, 0xAA);
+    singleByteWrite(0x2AAA, 0x55);
+    singleByteWrite(0x5555, 0xF0);
+    delayMicroseconds(FLASH_IDMODE_ACCESS_TIME_us);
+
+    z80bus.write_controlBit(z80bus.mreq, true);
+    z80bus.release_dataBus();
+}
+
+/*--------------------------------------------------------------------------------------------------------
+ Checks how many bytes are programmed in the flash (bottom 64k)
+ reads the flash starting from the highest address, until a byte does not read FF anymore
+ works in active mode only
+---------------------------------------------------------------------------------------------------------*/
+uint32_t FlashLoader::bytesProgrammed() {
+    if (flashmode != active) return 0;
+    for (uint32_t i=0; i<0xFFFF; i++) if(readByte(0xFFFF - i) != 0xFF) return 0xFFFF - i + 1;
+    return 0;
+}
+
+/*--------------------------------------------------------------------------------------------------------
+ Writes and verifies a test program to the FLASH
+ works in active mode only
+---------------------------------------------------------------------------------------------------------*/
+bool FlashLoader::writeTestProgram(uint8_t programNumber) {
+    setFlashMode(true);
+
+    //erase
+    eraseFlash();    
+    //write
+    for (uint32_t i=0; i<testPrograms[programNumber].length; i++) writeByte(i, testPrograms[programNumber].data[i]);
+    //verify
+    bool programOK = true;
+    for (uint32_t i=0; i<testPrograms[programNumber].length; i++) if (readByte(i) != testPrograms[programNumber].data[i]) programOK = false;
+    
+    setFlashMode(false);                 
+    return programOK;
+}
 
 /*--------------------------------------------------------------------------------------------------------
  to start and stop flash mode
 ---------------------------------------------------------------------------------------------------------*/
 void FlashLoader::setFlashMode(bool enable_nDisable) {
     if (enable_nDisable) {    
-        z80bus.request_bus();        
+        z80bus.request_bus();     
+        z80bus.write_controlBit(z80bus.reset, true);   
         flashmode = active;
         hexCounter = 0;
         rxHex.rxReset();        
@@ -216,6 +278,7 @@ void FlashLoader::setFlashMode(bool enable_nDisable) {
     }
     else {
         z80bus.release_bus();
+        z80bus.write_controlBit(z80bus.reset, false); 
         flashmode = inactive;
     }
 }
