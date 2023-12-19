@@ -12,63 +12,109 @@ stacktop:   equ 0   ; end of RAM + 1
 ; STARTING HERE, WE ARE RUNNING FROM FLASH
 ;##############################################################################   
     ld      a, 0                            ; load a with 0
-    out     (gpio_out_0), a                 ; turn on disk LED's (it is inverted)
-    out     (gpio_out_1), a                 ; turn off gpio LED's and sd led's
+    out     (gpio_out_0), a                 ; Select RAM Bank 0, turn off disk LED's (it is inverted)
+    ld      a, gpio_out_1_user_0            ; enable user led 0 for starting
+    out     (gpio_out_1), a                 ; Turn off User LED's                                            
 
     ; Copy the FLASH into the SRAM by reading every byte and 
     ; writing it back into the same address.
-    ld  hl,0
-    ld  de,0
-    ld  bc,_end
-    ldir                ; Copy all the code in the FLASH into RAM at same address.
+    ld      hl,0
+    ld      de,0
+    ld      bc,_end
+    ldir                                    ; Copy all the code in the FLASH into RAM at same address.
 
     ; Disable the FLASH and run from SRAM only from this point on.
-    in  a,(flash_disable)   ; Dummy-read this port to disable the FLASH.
+    in      a,(flash_disable)               ; Dummy-read this port to disable the FLASH.
 
 ;##############################################################################
 ; STARTING HERE, WE ARE RUNNING FROM RAM
 ;############################################################################## 
-    ld      sp,stacktop                 ;initalize stackpointer
+    ld      sp,stacktop                     ;initalize stackpointer
 
-main:
-    ;turn the Disk LED on
-    ld      a, 0                       ; load a with 0
-    out     (gpio_out_0), a            ; io write to output 0 
+main2: 
+    call        delay   
+    call        disable_disk                ; disable disk led
+    call        delay                       ; delay
+    call        enable_disk                 ; enable disk led
 
-    call delay
+    ld          a,(direction)               ; check direction
+    and         0x01                           
+    jp          z,go_right                  ; if direction is zero, go right, else go left
 
-    ;turn the Disk LED off
-    ld      a, gpio_out_0_sd_ssel       ; load a with 0
-    out     (gpio_out_0), a             ; io write to output 0
+go_left:
+    ld          a,(userleds)                ; load current mask
+    rr          a                           ; rotate a to the right
+    and         0x0F                        ; if none of the lower 4 bits is set, change direction
+    jp          z, go_left_change
+    jp          update_leds                 ; jump to update leds
 
-    ;increment the green leds
-    ld      a,(green_leds)              ; read save variable
-    inc     a                           ; increment it
-    ld      (green_leds),a              ; save it back
-    out     (gpio_out_1),a              ; write it to output
+go_left_change:
+    ld          a, 0                        ; set direction to 0 (right)
+    ld          (direction), a
+    ld          a, 2                        ; userledmask to 2
+    jp          update_leds                 ; jump to update leds
 
-    call delay
+go_right:
+    ld          a,(userleds)                ; load current led state
+    rl          a                           ; rotate a to the left
+    and         0x0F                        ; if none of the lower 4 bits is set, change direction
+    jp          z, go_right_change
+    jp          update_leds                 ; jump to update leds
+    
+go_right_change:
+    ld          a, 1                        ; set direction to 1 (left)
+    ld          (direction), a
+    ld          a, 4                        ; userledmask to 4
 
-    ;rePeat
-    jp      main
+update_leds:
+    ld          (userleds),a                ; save a in mask variable
+    out         (gpio_out_1), a
+
+    jp          main2                       ; repeat
 
 ;****************************************************************************
-; Waste some time & return 
+; Delay function - Waste some time & return 
+; clobbers hl
 ;****************************************************************************
 delay:
-    ld      hl,0x8000
-dloop:
+    ld      hl,0x6000
+delay_loop:
     dec     hl
     ld      a,h
     or      l
-    jp      nz,dloop
+    jp      nz,delay_loop
     ret
 
+;****************************************************************************
+; Disables the Disk Led 
+; clobbers a
+;****************************************************************************
+disable_disk:
+    ld      a,gpio_out_0_sd_ssel            
+    out     (gpio_out_0),a
+    ret
 
 ;****************************************************************************
-; Save space 
+; Enables the Disk Led 
+; clobbers a
 ;****************************************************************************
-green_leds: db  0
+enable_disk:
+    ld      a,0            
+    out     (gpio_out_0),a 
+
+    ; test for stm32 ioreq
+    ld      a,(stm32_data)                  ; Load stm32_data to a
+    inc     a                               ; increment it
+    ld      (stm32_data),a                  ; store back 
+    out     (stm32_port),a                  ; send it to stm32
+    ret
+
+;****************************************************************************
+; Save space
+;****************************************************************************
+direction:      db  1
+userleds:       db  1
+stm32_data:     db  0
 
 ;****************************************************************************
 ; Includes 

@@ -246,7 +246,7 @@ try:
         if (recordConfirmed): 
             print("CONFIRMED")            
         else: 
-            print("ERROR") 
+            print("ERROR\r\n") 
             printAndExit("ERROR: VALIDATION failed")      
         
 except Exception as e:
