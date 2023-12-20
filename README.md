@@ -43,5 +43,6 @@ More information about the hardware [here](https://github.com/snakescb/TeachZ80/
   *  4 additional General Purpose User LED's
   *  Flash Bank Select Jumper, so the system can access the lower or upper 64kB page of the installed FLASH, selectable by jumper
   *  2 UART headers, accessing SIO A and B on 5V logic levels (no RS232 level shifter installed)
+  *  Mode button. Pushing this put's the board in Flash mode, where the stm32 is resetting the board and accessing the memory bus. It then receives Intel HEX records (type 00 and 01) and writes the data to the FLASH
 
 
