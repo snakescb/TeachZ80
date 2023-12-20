@@ -1,7 +1,7 @@
 # TeachZ80
 Retro Z80 single board computer base on John Winans original design: [Z80-Retro!](https://github.com/Z80-Retro) 
 
-I fell in love (again) when I stumbled over Johns work, and his amazing YouTube [Playlist](https://www.youtube.com/playlist?list=PL3by7evD3F51Cf9QnsAEdgSQ4cz7HQZX5) where he not only explains the Hardware in detail, but provides excellent educational content about the hardware, software, assembler, CP/M, compiling and everything related to revive this technology from the late 70's. From there, I knew I want to design and build my own boards, so here it is: TeachZ80. 
+I fell in love (again) when I stumbled over Johns work, and his amazing YouTube [Playlist](https://www.youtube.com/playlist?list=PL3by7evD3F51Cf9QnsAEdgSQ4cz7HQZX5) where he not only explains the hardware in detail, but provides excellent educational content about the hardware, software, assembler, CP/M, compiling and everything related to revive this technology from the late 70's. From there, I knew I want to design and build my own boards, so here it is: TeachZ80. 
 
 ![tz80](https://github.com/snakescb/TeachZ80/assets/10495848/9f057115-1c9f-49a7-9c8c-1d03e33ec62e)
 
