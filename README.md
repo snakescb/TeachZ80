@@ -10,38 +10,37 @@ TeachZ80 is fully software compatible with Johns Z80-Retro board. It is 95% the 
 
 ## Changes and Features versus the original Z80-Retro!
 
-* Additional components and tools
-  * SI5351A clock Generator. Generates 3 adjustable clocks for the, 1 for the Z80 system clock and one for each SIO channel
-  * STM32F722 support Processor
-    * Downloads user compiled assemblies into the FLASH directly through the USB port
-    * Provides a command line interface for easy access to core functions:
-      * Changing System and SIO clock frequencies
-      * Erase the FLASH
-      * Dump the FLASH content
-      * Load the FLASH with precompiled built-in testprograms
-    * Handles Z80 IO-Write-Request to address 0x60 - 0x60F, so the Z80 can access some STM32 functionality as well (like changing clock frequencies or controlling the STM32 LED through IO requests)
-    * More potential future features (let's see)
-      * Dumping some RAM addresses while Z80 is running
-      * Set breakpoints to specific RAM addresses and inform user when Z80 is accessing them
-      * Assemble code directly in the STM32, so no exteral tools are required?
-      * Reading and formatting the SDCard
-      * Generating IO-requests to onboard or addon-boards hardware through the console
-  * USB-C connector providing up to 15W input power
-  * CP2105 Dual-Channel USB to UART oconverter. This will create 2 virtual serial ports to the USB host:
-    *   The first port is conected to the STM32, to load Z80 assemblies into to the FLASH, access the stm32 command line interface or upgrading the stm32 firmware
-    *   The second port is connected to SIO A, which is used as the default console output by the Z80 software
-  * New GPIO Header on the right for more possible addon boards. The printer header from the Z80-Retro has been removed, but all printer signals still are available on this new header. In total the header provides access to:
-    *   10 General Purpose Outputs
-    *   9 General Purpose Inputs
-    *   The 3 synthetic clock signals
-    *   SIO A and B Rx and Tx signals
-    *   CTC channel 0, 1 and 2 TD and TRG signals
-    *   5V and 3.3V
-  *  Additional 74LS244 output latch on IO port 0x50. The lower 4 bits are wired to the user LED's (the higher 4 are used for internal 3.3V-5V level shifting).
-  *  4 additional General Purpose User LED's
-  *  Flash Bank Select Jumper, so the system can access the lower or upper 64kB page of the installed FLASH, selectable by jumper
-  *  2 UART headers, accessing SIO A and B on 5V logic levels (no RS232 level shifter installed)
-  *  Mode Button. Pushing this put's the board in Flash mode, where the stm32 is resetting the board and accessing the memory bus. It then receives Intel HEX records (type 00 and 01) through USB VCP and writes the data to the FLASH
+* SI5351A clock Generator. Generates 3 adjustable clocks for the, 1 for the Z80 system clock and one for each SIO channel
+* STM32F722 support Processor
+  * Downloads user compiled assemblies into the FLASH directly through the USB port
+  * Provides a command line interface for easy access to core functions:
+    * Changing System and SIO clock frequencies
+    * Erase the FLASH
+    * Dump the FLASH content
+    * Load the FLASH with precompiled built-in testprograms
+  * Handles Z80 IO-Write-Request to address 0x60 - 0x60F, so the Z80 can access some STM32 functionality as well (like changing clock frequencies or controlling the STM32 LED through IO requests)
+  * More potential future features (let's see)
+    * Dumping some RAM addresses while Z80 is running
+    * Set breakpoints to specific RAM addresses and inform user when Z80 is accessing them
+    * Assemble code directly in the STM32, so no exteral tools are required?
+    * Reading and formatting the SDCard
+    * Generating IO-requests to onboard or addon-boards hardware through the console
+* USB-C connector providing up to 15W input power
+* CP2105 Dual-Channel USB to UART oconverter. This will create 2 virtual serial ports to the USB host:
+  * The first port is conected to the STM32, to load Z80 assemblies into to the FLASH, access the stm32 command line interface or upgrading the stm32 firmware
+  * The second port is connected to SIO A, which is used as the default console output by the Z80 software
+* New GPIO Header on the right for more possible addon boards. The printer header from the Z80-Retro has been removed, but all printer signals still are available on this new header. In total the header provides access to:
+  * 10 General Purpose Outputs
+  * 9 General Purpose Inputs
+  * The 3 synthetic clock signals
+  * SIO A and B Rx and Tx signals
+  * CTC channel 0, 1 and 2 TD and TRG signals
+  * 5V and 3.3V
+* Additional 74LS244 output latch on IO port 0x50. The lower 4 bits are wired to the user LED's (the higher 4 are used for internal 3.3V-5V level shifting).
+* 4 additional General Purpose User LED's
+* Flash Bank Select Jumper, so the system can access the lower or upper 64kB page of the installed FLASH, selectable by jumper
+* 2 UART headers, accessing SIO A and B on 5V logic levels (no RS232 level shifter installed)
+* Mode Button. Pushing this put's the board in Flash mode, where the stm32 is resetting the board and accessing the memory bus. It then receives Intel HEX records (type 00 and 01) through USB VCP and writes the data to the FLASH
 
 ## Information and guides
 
