@@ -23,8 +23,9 @@ TeachZ80 is fully software compatible with Johns Z80-Retro board. It is 95% the 
     * More potential future features (let's see)
       * Dumping some RAM addresses while Z80 is running
       * Set breakpoints to specific RAM addresses and inform user when Z80 is accessing them
-      * Assembly code directly in the STM32, so no exteral tools are required?
+      * Assemble code directly in the STM32, so no exteral tools are required?
       * Reading and formatting the SDCard
+      * Generating IO-requests to onboard or addon-boards hardware through the console
   * USB-C connector providing up to 15W input power
   * CP2105 Dual-Channel USB to UART oconverter. This will create 2 virtual serial ports to the USB host:
     *   The first port is conected to the STM32, to load Z80 assemblies into to the FLASH, access the stm32 command line interface or upgrading the stm32 firmware
@@ -38,5 +39,7 @@ TeachZ80 is fully software compatible with Johns Z80-Retro board. It is 95% the 
     *   5V and 3.3V
   *  Additional 74LS244 output latch on IO port 0x50. The lower 4 bits are wired to the user LED's (the higher 4 are used for internal 3.3V-5V level shifting).
   *  4 additional General Purpose User LED's
+  *  Flash Bank Select Jumper, so the system can access the lower or upper 64kB page of the installed FLASH, selectable by jumper
+  *  2 UART headers, accessing SIO A and B on 5V logic levels (no RS232 level shifter installed)
 
 
