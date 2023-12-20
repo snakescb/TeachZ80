@@ -46,6 +46,6 @@ TeachZ80 is fully software compatible with Johns Z80-Retro board. It is 95% the 
 ## Information and guides
 
 * More information about the hardware [here](https://github.com/snakescb/TeachZ80/tree/main/Hardware)
-* More information about helper tools: TBD
+* More information about helper tools [here](https://github.com/snakescb/TeachZ80/tree/main/Software/tools)
 * More information about stm32 software: TBD
 * More information about Z80 software: TBD
