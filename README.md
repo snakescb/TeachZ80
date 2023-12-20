@@ -9,6 +9,9 @@ I fell in love (again) when I stumbled over Johns work, and his amazing YouTube 
 TeachZ80 is fully software compatible with Johns Z80-Retro board. It is 95% the same design, but includes some additional (modern) hardware components to make the system even more accessible and easier to use. Beside the modern SMD parts, the board preserves some of the retro look-and-feel, and can be easily hand soldered. 
 
 More information about the hardware [here](https://github.com/snakescb/TeachZ80/tree/main/Hardware)
+More information about helper tools: TBD
+More information about stm32 software: TBD
+More information about Z80 software: TBD
 
 ## Changes and Features versus the original Z80-Retro!
 
