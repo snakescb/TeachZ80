@@ -36,7 +36,7 @@ TeachZ80 is fully software compatible with Johns Z80-Retro board. It is 95% the 
   * SIO A and B Rx and Tx signals
   * CTC channel 0, 1 and 2 TD and TRG signals
   * 5V and 3.3V
-* Additional 74LS244 output latch on IO port 0x50. The lower 4 bits are wired to the user LED's (the higher 4 are used for internal 3.3V-5V level shifting).
+* Additional 74LS244 input buffer on IO port 0x50. The lower 4 bits are used as additional General Purpose Inputs, the higher 4 are used for 3.3V-5V level shifting.
 * 4 additional General Purpose User LED's
 * Flash Bank Select Jumper, so the system can access the lower or upper 64kB page of the installed FLASH, selectable by jumper
 * 2 UART headers, accessing SIO A and B on 5V logic levels (no RS232 level shifter installed)
