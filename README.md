@@ -6,12 +6,7 @@ I fell in love (again) when I stumbled over Johns work, and his amazing YouTube 
 ![tz80](https://github.com/snakescb/TeachZ80/assets/10495848/9f057115-1c9f-49a7-9c8c-1d03e33ec62e)
 
 
-TeachZ80 is fully software compatible with Johns Z80-Retro board. It is 95% the same design, but includes some additional (modern) hardware components to make the system even more accessible and easier to use. Beside the modern SMD parts, the board preserves some of the retro look-and-feel, and can be easily hand soldered. 
-
-More information about the hardware [here](https://github.com/snakescb/TeachZ80/tree/main/Hardware)
-More information about helper tools: TBD
-More information about stm32 software: TBD
-More information about Z80 software: TBD
+TeachZ80 is fully software compatible with Johns Z80-Retro board. It is 95% the same design, but includes some additional (modern) hardware components to make the system even more accessible and easier to use. Beside the modern SMD parts, the board preserves some of the retro look-and-feel, and can be easily hand soldered.  
 
 ## Changes and Features versus the original Z80-Retro!
 
@@ -48,4 +43,9 @@ More information about Z80 software: TBD
   *  2 UART headers, accessing SIO A and B on 5V logic levels (no RS232 level shifter installed)
   *  Mode Button. Pushing this put's the board in Flash mode, where the stm32 is resetting the board and accessing the memory bus. It then receives Intel HEX records (type 00 and 01) through USB VCP and writes the data to the FLASH
 
+## Information and guides
 
+* More information about the hardware [here](https://github.com/snakescb/TeachZ80/tree/main/Hardware)
+* More information about helper tools: TBD
+* More information about stm32 software: TBD
+* More information about Z80 software: TBD
