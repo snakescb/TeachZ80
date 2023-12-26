@@ -3,8 +3,9 @@
 #include <FlashLoader.h>
 #include <Si5153.h>
 #include <Config.h>
-#include <Z80bus.h>
-#include <Z80TestPrograms.h>
+#include <Z80Bus.h>
+#include <Z80Flash.h>
+#include <Z80Programs.h>
 
 /* Types and definitions ------------------------------------------------------------------------------- */  
 #define SCREEN_HEIGHT      22
@@ -39,7 +40,8 @@ const char* menuTitles[]    = { " Welcome ",
 extern Si5153 clock;
 extern FlashLoader flashloader;   
 extern Config config;         
-extern Z80bus z80bus;                    
+extern Z80Bus z80bus;  
+extern Z80Flash z80flash;
 
 /*--------------------------------------------------------------------------------------------------------
  Constructor
@@ -189,12 +191,12 @@ void Console::drawMenu() {
             drawLineFormat(" Flash Dump 0x%04X - 0x%04X", config.configdata.flash.dumpStart, config.configdata.flash.dumpEnd);
             drawLine(" -------------------------------------------------------------------------");
 
-            flashloader.setFlashMode(true);
+            z80flash.setMode(true);
             uint16_t numlines = (config.configdata.flash.dumpEnd + 1 - config.configdata.flash.dumpStart) >> 4;
             uint16_t address = config.configdata.flash.dumpStart;
             uint8_t databuffer[16];
             for (unsigned int i=0; i<numlines; i++) {
-                for (int j=0; j<16; j++) databuffer[j] = flashloader.readByte(address + j);
+                for (int j=0; j<16; j++) databuffer[j] = z80flash.readByte(address + j);
                 Serial.printf(" %04X: ", address);
                 for (int j=0; j<8; j++) Serial.printf(" %02X", databuffer[j]);
                 Serial.print(" ");
@@ -208,7 +210,7 @@ void Console::drawMenu() {
                 drawLine("");
                 address += 0x10;
             }
-            flashloader.setFlashMode(false);
+            z80flash.setMode(false);
      
             drawLine(" -------------------------------------------------------------------------");
             drawLine(" 9: Back");
@@ -245,7 +247,7 @@ void Console::drawMenu() {
             drawLine("");            
             drawLine(" Available Programs");
             drawLine(" -------------------------------------------------------------------------");
-            for (int i=0; i<sizeof(testPrograms) / sizeof(z80TestProgram_t); i++) {
+            for (int i=0; i<sizeof(testPrograms) / sizeof(z80Program_t); i++) {
                 Serial.printf(" %u: ", i+1);
                 Serial.print(testPrograms[i].name);
                 Serial.printf(" (%u Bytes)", testPrograms[i].length);
@@ -271,17 +273,17 @@ void Console::drawMenu() {
             drawLine("");
             drawLine(" Flash Information");
             drawLine(menuDivider);
-            if (flashloader.chipVendorId == 0xBF) {
+            if (z80flash.chipVendorId == 0xBF) {
                 drawLine(" Vendor     : Microchip");
-                if (flashloader.chipDeviceId == 0xB5) {
+                if (z80flash.chipDeviceId == 0xB5) {
                     drawLine(" Device     : SST39SF010A");
                     drawLine(" Capacity   : 128kB (128k x 8)");
                 }
-                else if (flashloader.chipDeviceId == 0xB6) {
+                else if (z80flash.chipDeviceId == 0xB6) {
                     drawLine(" Device     : SST39SF020A");
                     drawLine(" Capacity   : 256kB (256k x 8)");
                 }
-                else if (flashloader.chipDeviceId == 0xB7) {
+                else if (z80flash.chipDeviceId == 0xB7) {
                     drawLine(" Device     : SST39SF040");
                     drawLine(" Capacity   : 512kB (512k x 8)");
                 }
@@ -383,10 +385,10 @@ void Console::serialUpdate(uint8_t c) {
         case flash: {             
             if (c == '1') menustate = flashdump;
             else if (c == '2') {
-                flashloader.setFlashMode(true);
-                flashloader.readChipIndentification();
-                lastFunctionResult = flashloader.bytesProgrammed();
-                flashloader.setFlashMode(false);
+                z80flash.setMode(true);
+                z80flash.readChipIndentification();
+                lastFunctionResult = z80flash.bytesProgrammed();
+                z80flash.setMode(false);
                 menustate = flashinfo;
             }
             else if (c == '3') menustate = flasherase;
@@ -430,10 +432,10 @@ void Console::serialUpdate(uint8_t c) {
         case flasherase: {
             if (c == KEY_ESC) menustate = flash;
             else if ((c == KEY_LINE_FEED) || (c == KEY_CARRIAGE_FEED)) {
-                flashloader.setFlashMode(true);
-                flashloader.eraseFlash();
-                lastFunctionResult = flashloader.bytesProgrammed();
-                flashloader.setFlashMode(false);
+                z80flash.setMode(true);
+                z80flash.eraseFlash();
+                lastFunctionResult = z80flash.bytesProgrammed();
+                z80flash.setMode(false);
                 menustate = flasheraseresult;
             }
             else refreshScreen = false;
@@ -451,8 +453,8 @@ void Console::serialUpdate(uint8_t c) {
             else {
                 if ((c >= '1') && (c <= '8')) {
                     uint8_t programNumber = c - '1';
-                    if (programNumber <= (sizeof(testPrograms) / sizeof(z80TestProgram_t)) - 1) { 
-                        lastFunctionResult = flashloader.writeTestProgram(programNumber); 
+                    if (programNumber <= (sizeof(testPrograms) / sizeof(z80Program_t)) - 1) { 
+                        lastFunctionResult = z80flash.writeTestProgram(programNumber); 
                         menustate = flashtestprogramresult;
                     }
                     else refreshScreen = false;

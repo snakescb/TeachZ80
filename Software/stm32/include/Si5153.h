@@ -5,7 +5,7 @@
  
  This library is not using the full functional scope of the Si5153 chip, and is using some shortcuts:
     - Uses <SoftWire> software I2C, but library can be easily adjusted to other SW/HW I2C libraries
-    - PLLA and PLLB are set to fixed 800MHz
+    - PLLA and PLLB are set to fixed 600MHz (gives best resolution for the low frequencies we use)
     - PLLA and PLLB are driven from the external crystal
     - Assumes a 25MHz crystal and uses the default 10pF load capacitance
     - Spread Spectrum is disabled

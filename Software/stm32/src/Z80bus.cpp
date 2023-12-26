@@ -1,4 +1,4 @@
-#include <Z80bus.h>
+#include <Z80Bus.h>
 
 /* Types and definitions -------------------------------------------------------------------------------- */  
 
@@ -16,9 +16,6 @@
 
 #define PORTH_BUS_LINES_IN_USE      0x0003    //on port H pin 0,1 are used by the bus
 #define PORTH_CONTROL_LINES_IN_USE  0x0003    //on port H pin 0,1 are used by the control bus
-
-//special pin definitions
-#define IOREQ_60_pin     PA8
 
 //timings
 #define RESET_PULSE_LEN_ms  50
@@ -53,7 +50,7 @@
 /*--------------------------------------------------------------------------------------------------------
  Constructor
 ---------------------------------------------------------------------------------------------------------*/
-Z80bus::Z80bus(void) { 
+Z80Bus::Z80Bus(void) { 
     //I/O ports initialization
     //all lines required by the bus need to be open drain outputs, they have external pull ups to 5v
     busmode = passive;
@@ -90,45 +87,13 @@ Z80bus::Z80bus(void) {
 
     //release all lines
     release_bus();
-
-    //setup iroeq interrupt
-    HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
-    HAL_NVIC_SetPriority(SysTick_IRQn, 1, 0);
-    attachInterrupt(IOREQ_60_pin, 0, FALLING);
-}
-
-/*--------------------------------------------------------------------------------------------------------
-EXTI interrupt handler to handle IORequests
-To be as fast as possible, change interupt priority through HAL
-Also, avoid the HAL / Arduino default handlers to be called, by redefining EXTI9_5_IRQHandler
-
-On V1.0 / V1.1 boards with the stm32l433, reading iorequests works reliably until 6MHz only
-
-Requires to add __weak to void EXTI9_5_IRQHandler(void) in
-(user folder)\.platformio\packages\framework-arduinoststm32\libraries\SrcWrapper\src\stm32\interrupt.cpp
----------------------------------------------------------------------------------------------------------*/
-extern IOreq ioReq;
-
-extern "C"  {   
-    void EXTI9_5_IRQHandler(void){
-        uint16_t gpioB = GPIOB->IDR;
-        uint16_t gpioA = GPIOA->IDR;
-        uint16_t gpioC = GPIOC->IDR;
-
-        uint8_t data = (gpioA & PORTA_DATA_LINES_IN_USE) | ((gpioC & PORTC_DATA_LINES_IN_USE) >> 10);           
-        ioReq.ioreqHandler(gpioB & 0xFF, data);
-
-        //reset the interrupt flag
-        EXTI->PR1 = EXTI_PR1_PIF8; 
-
-    }
 }
 
 /*--------------------------------------------------------------------------------------------------------
 This function enable or disables push-pull on the control pins (excluding reset). 
 This is required for consistent memory programming
 ---------------------------------------------------------------------------------------------------------*/
-void Z80bus::controlPinsActiveDrive(bool enable) {
+void Z80Bus::controlPinsActiveDrive(bool enable) {
     if (enable) {
         // 0x00 in OTYPER (1 bit per pin) sets the port pin to push-pull
         GPIOA->OTYPER = setPortBits(GPIOA->OTYPER, PORTA_CONTROL_LINES_EX_RES, 0x00, false);
@@ -144,7 +109,7 @@ void Z80bus::controlPinsActiveDrive(bool enable) {
 /*--------------------------------------------------------------------------------------------------------
 reset Z80
 ---------------------------------------------------------------------------------------------------------*/
-void Z80bus::resetZ80() {
+void Z80Bus::resetZ80() {
     RESET_SET;
     delay(RESET_PULSE_LEN_ms);
     RESET_CLR;
@@ -153,7 +118,7 @@ void Z80bus::resetZ80() {
 /*--------------------------------------------------------------------------------------------------------
 set/release a specific control bit
 ---------------------------------------------------------------------------------------------------------*/
-void Z80bus::write_controlBit(Z80bus_controlBits bit, bool state) {    
+void Z80Bus::write_controlBit(Z80Bus_controlBits bit, bool state) {    
     //reset can be controlled anytime, other lines only when bus is actively controlled
     if ((bit == reset ) &&  state) RESET_SET;
     if ((bit == reset ) && !state) RESET_CLR;
@@ -173,7 +138,7 @@ void Z80bus::write_controlBit(Z80bus_controlBits bit, bool state) {
 /*--------------------------------------------------------------------------------------------------------
  Bus write functions
 ---------------------------------------------------------------------------------------------------------*/
-void Z80bus::write_dataBus(uint8_t data) {
+void Z80Bus::write_dataBus(uint8_t data) {
     if (busmode == passive) return;
     uint16_t dataA = data & PORTA_DATA_LINES_IN_USE;
     uint16_t dataC = (data << 10) & PORTC_DATA_LINES_IN_USE;
@@ -184,7 +149,7 @@ void Z80bus::write_dataBus(uint8_t data) {
     GPIOC->BSRR = (~(data << 10) & PORTC_DATA_LINES_IN_USE) << 16;
 }
 
-void Z80bus::write_addressBus(uint16_t address) {
+void Z80Bus::write_addressBus(uint16_t address) {
     if (busmode == passive) return;
     GPIOB->ODR = address;
 }
@@ -192,11 +157,11 @@ void Z80bus::write_addressBus(uint16_t address) {
 /*--------------------------------------------------------------------------------------------------------
  Bus read functions
 ---------------------------------------------------------------------------------------------------------*/
-uint8_t Z80bus::read_dataBus() {
+uint8_t Z80Bus::read_dataBus() {
     return (GPIOA->IDR & PORTA_DATA_LINES_IN_USE) | ((GPIOC->IDR & PORTC_DATA_LINES_IN_USE) >> 10);
 }
 
-uint16_t Z80bus::read_addressBus() {
+uint16_t Z80Bus::read_addressBus() {
     return GPIOB->IDR;
 }
 
@@ -205,7 +170,7 @@ uint16_t Z80bus::read_addressBus() {
  does not wait for Z80 to assert the busack line. It may be possible there is no CPU. Also, the CPU will
  always release the bus according the datasheet with high priority
 ---------------------------------------------------------------------------------------------------------*/
-bool Z80bus::request_bus(){
+bool Z80Bus::request_bus(){
     if (busmode != passive) return false;
     release_bus();
     BUSREQ_CLR;
@@ -218,7 +183,7 @@ bool Z80bus::request_bus(){
 /*--------------------------------------------------------------------------------------------------------
  Bus release functions - set output pins high (release pins)
 ---------------------------------------------------------------------------------------------------------*/
-void Z80bus::release_bus() {
+void Z80Bus::release_bus() {
     controlPinsActiveDrive(false);
     release_dataBus();
     release_addressBus();
@@ -227,16 +192,16 @@ void Z80bus::release_bus() {
     busmode = passive;
 }
 
-void Z80bus::release_dataBus() {
+void Z80Bus::release_dataBus() {
     GPIOA->BSRR = PORTA_DATA_LINES_IN_USE;
     GPIOC->BSRR = PORTC_DATA_LINES_IN_USE;
 }
 
-void Z80bus::release_addressBus() {
+void Z80Bus::release_addressBus() {
     GPIOB->BSRR = PORTB_ADDRESS_LINES_IN_USE;
 }
 
-void Z80bus::release_controlBus() {
+void Z80Bus::release_controlBus() {
     GPIOA->BSRR = PORTA_CONTROL_LINES_EX_RES;
     GPIOH->BSRR = PORTH_CONTROL_LINES_IN_USE;
 }
@@ -245,7 +210,7 @@ void Z80bus::release_controlBus() {
 Helper function to change bits in a 32bit gpio register based on a 16 bit mask (pins changed by this 
 function) to a defined bitvalue. Works for 1 or 2 bits per pin
 ---------------------------------------------------------------------------------------------------------*/
-uint32_t Z80bus::setPortBits(uint32_t portregister, uint32_t pinsInUnse, uint32_t bitvalue, bool twoBits) {
+uint32_t Z80Bus::setPortBits(uint32_t portregister, uint32_t pinsInUnse, uint32_t bitvalue, bool twoBits) {
     uint32_t registerOut = 0;
     uint32_t checkmask = 0x01;
     uint32_t copymask = 0x01;

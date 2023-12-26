@@ -8,10 +8,13 @@
 #include <Button.h>
 #include <Console.h>
 #include <Si5153.h>
-#include <Z80bus.h>
-#include <IOreq.h>
-#include <FlashLoader.h>
 #include <Config.h>
+#include <Z80Bus.h>
+#include <Z80Flash.h>
+#include <Z80IO.h>
+#include <Z80SPI.h>
+#include <Z80SDCard.h>
+#include <FlashLoader.h>
 
 /* Types and definitions -------------------------------------------------------------------------------- */
 // Startup delay
@@ -32,12 +35,14 @@ ApplicationState applicationState ;
 Led statusLed(PA4);
 Button button(PH3);
 Si5153 clock(PA3, PA5);
-IOreq ioReq;
-Z80bus z80bus;
-FlashLoader flashloader(z80bus);
-Console console;
 Config config;
-
+Console console;
+Z80Bus z80bus;
+Z80IO z80io(z80bus);
+Z80SPI z80spi(z80io);
+Z80SDCard z80sdcard(z80spi);
+Z80Flash z80flash(z80bus);
+FlashLoader flashloader(z80flash);
 
 /*#########################################################################################################
  Main Program
@@ -58,6 +63,7 @@ void setup() {
 		clock.configureChannel(2, config.configdata.clock.siobClock, clock.DIV1, clock.PLLB, clock.ENABLE);  //1.8432 MHZ Clock SIOB
 	}
 
+	z80io_interrupt_config();
 	console.begin();
 	z80bus.resetZ80();
 	delay(STARTUP_DELAY_ms);
@@ -74,14 +80,69 @@ void loop() {
    	statusLed.process();
    	button.process();
 
+	/*
+	static uint32_t testtime = 0;
+	static bool ok = false;
+	if (!ok) {
+		if (millis() - testtime > 1000) {
+			testtime = millis();
+
+			Z80SDCard::sdResult result = z80sdcard.accessCard(true);
+			if (result == z80sdcard.ok) Serial.println("Access: SD Card OK");
+			if (result == z80sdcard.nocard) Serial.println("Access: No SD Card in slot");
+			if (result == z80sdcard.not_idle) Serial.println("Access: SD Card not idle");
+			if (result == z80sdcard.invalid_status) Serial.println("Access: SD Card onvalid status");
+			if (result == z80sdcard.invalid_status) Serial.println("Access: SD Card is not ready");
+			if (result == z80sdcard.invalid_capacity) Serial.println("Access: SD Card is not SDHC or SDXC");
+
+			result = z80sdcard.readBlock(0, z80sdcard.sdDataBuffer);
+			if (result == z80sdcard.ok) {
+
+				uint16_t numlines = 512 >> 4;
+				uint16_t address = 0;
+				uint8_t databuffer[16];
+				for (unsigned int i=0; i<numlines; i++) {
+					for (int j=0; j<16; j++) databuffer[j] = z80sdcard.sdDataBuffer[address + j];
+					Serial.printf(" %04X: ", address);
+					for (int j=0; j<8; j++) Serial.printf(" %02X", databuffer[j]);
+					Serial.print(" ");
+					for (int j=8; j<16; j++) Serial.printf(" %02X", databuffer[j]);
+					Serial.print("  ");
+
+					for (int j=0; j<16; j++) {
+						if ((databuffer[j] >= 21) && (databuffer[j] < 127)) Serial.write(databuffer[j]);
+						else Serial.write('.');
+					}
+					Serial.println();
+					address += 0x10;
+				}
+
+				uint8_t testbuffer[512];
+				for (int i=0; i<512; i++) testbuffer[i] = i;
+				result = z80sdcard.writeBlock(0, testbuffer);
+
+				if (result == z80sdcard.ok) Serial.println("Write: OK!");
+				if (result == z80sdcard.not_idle) Serial.println("Write: ERROR - Card Not ready");
+				if (result == z80sdcard.write_timeout_1) Serial.println("Write: ERROR - Timeout 1");
+				if (result == z80sdcard.write_timeout_2) Serial.println("Write: ERROR - Timeout 2");
+
+				ok=true;
+			}
+			else Serial.println("Read: ERROR");
+			z80sdcard.accessCard(false);
+
+		}
+	}
+	*/
+
 	//Reception of serial characters
 	int rx = Serial.read();
 	//state machine
 	switch (applicationState) {
 		case Idle: {
 			if (rx != -1) console.serialUpdate((uint8_t) rx);
-			if (button.pushTrigger() || (flashloader.flashmode == flashloader.active)) {		
-				if (flashloader.flashmode == flashloader.inactive) flashloader.setFlashMode(true);			
+			if (button.pushTrigger() || (flashloader.loadermode == flashloader.active)) {		
+				if (flashloader.loadermode == flashloader.inactive) flashloader.setMode(true);			
 				statusLed.set(FLASHMODE_LED_ON_PERIOD, FLASHMODE_LED_OFF_PERIOD);
 				applicationState = FlashMode;			
 			}
@@ -90,8 +151,8 @@ void loop() {
 
     	case FlashMode: {			
 			if (rx != -1) flashloader.serialUpdate((uint8_t) rx);
-			if (button.pushTrigger() || (flashloader.flashmode == flashloader.inactive)) {
-				if (flashloader.flashmode == flashloader.active) flashloader.setFlashMode(false);	
+			if (button.pushTrigger() || (flashloader.loadermode == flashloader.inactive)) {
+				if (flashloader.loadermode == flashloader.active) flashloader.setMode(false);	
 				statusLed.set(IDLE_LED_ON_PERIOD, IDLE_LED_OFF_PERIOD);
 				applicationState = Idle;
 			}
