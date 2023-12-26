@@ -82,6 +82,18 @@ hexdump:
 	pop	    af
 	ret
 
+;#############################################################################
+; Print the value in HL in hex
+; Clobbers C
+;#############################################################################
+hexdump_hl:
+	push 	af
+	ld	    a,h
+	call	hexdump_a
+	ld	    a,l
+	call	hexdump_a
+	pop		af
+	ret
 
 ;#############################################################################
 ; Print the value in A in hex

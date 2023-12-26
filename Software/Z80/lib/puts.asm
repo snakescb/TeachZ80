@@ -28,7 +28,7 @@
 ;##############################################################
 iputs:
         ex      (sp),hl                 ; hl = @ of string to print
-	    call	.puts_loop
+	call	.puts_loop
         inc     hl                      ; point past the end of the string
         ex      (sp),hl
         ret
@@ -47,11 +47,11 @@ puts:
 .puts_loop:
         ld      a,(hl)                  ; get the next byte to send
         or      a
-        jr      z,.puts_done             ; if A is zero, return
+        jr      z,.puts_done            ; if A is zero, return
         ld      c,a
         call    con_tx_char
         inc     hl                      ; point to next byte to write
-        jp      .puts_loop
+        jr      .puts_loop
 .puts_done:
         ret
 
@@ -62,4 +62,54 @@ puts:
 puts_crlf:
         call    iputs
         defb    '\r\n\0'
+        ret
+
+;##############################################################
+; Prints the (unsigned) value in HL as a decimal value to the
+; console. If e is 1, leading zeros are not printed
+; Clobbers nothing
+;##############################################################
+puts_decimal:
+        push	af
+	push	de
+	push	hl
+	push	bc
+        ld      bc, -10000
+        call    .puts_decimal_start
+        ld      bc, -1000
+        call    .puts_decimal_start
+        ld      bc, -100
+        call    .puts_decimal_start
+        ld      bc, -10
+        call    .puts_decimal_start
+        ld      a,'0'
+        add     a, l
+        ld      c, a
+        call    con_tx_char
+        pop	bc
+	pop	hl
+	pop	de
+	pop	af
+        ret
+
+.puts_decimal_start:
+        ld      d,-1                    ; use d as a counter
+.puts_decimal_loop:
+        inc     d                       ; increment d
+        add     hl,bc                   ; hl = hl + bc (bc is negative). if result is < 0, carry is set
+        jr      c,.puts_decimal_loop    ; if carry is 1, hl was bigger than -bc, continue loop
+        sbc     hl,bc                   ; hl = hl-bc-c. (bc is negative) restores hl to what it was before the last loop
+        ld      a, d                    ; check if d is zero
+        or      a                       
+        jr      nz,.puts_dec_print      ; if not zero, print it
+        ld      a, e                    ; if zero, check e
+        or      a
+        jr      nz,.puts_dec_skip       ; if e is not zero, skip printing d
+.puts_dec_print:
+        ld      a, d                    ; add ascii of '0'
+        add     '0'
+        ld      c, a                    ; store in c to print        
+        ld      e, 0                    ; clear e, all following characters print now
+        call    con_tx_char
+.puts_dec_skip:
         ret

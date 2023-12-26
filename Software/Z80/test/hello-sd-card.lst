@@ -1,0 +1,572 @@
+# File hello-sd-card.asm
+0000			;**************************************************************************** 
+0000			; 
+0000			;    Copyright (C) 2021,2022 John Winans 
+0000			; 
+0000			;    This library is free software; you can redistribute it and/or 
+0000			;    modify it under the terms of the GNU Lesser General Public 
+0000			;    License as published by the Free Software Foundation; either 
+0000			;    version 2.1 of the License, or (at your option) any later version. 
+0000			; 
+0000			;    This library is distributed in the hope that it will be useful, 
+0000			;    but WITHOUT ANY WARRANTY; without even the implied warranty of 
+0000			;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU 
+0000			;    Lesser General Public License for more details. 
+0000			; 
+0000			;    You should have received a copy of the GNU Lesser General Public 
+0000			;    License along with this library; if not, write to the Free Software 
+0000			;    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 
+0000			;    USA 
+0000			; 
+0000			;**************************************************************************** 
+0000			 
+0000			;**************************************************************************** 
+0000			; This program must be loaded to the SD card to the raw storage 
+0000			; This will make everything else on the SD card unusable!! 
+0000			; 
+0000			; ASSUMING your card is /dev/sda (normally the case on raspberry) 
+0000			; sudo dd if=/dev/zero of=/dev/sda bs=512 count=1 
+0000			; sudo dd if=hello-sd-card.bin of=/dev/sda bs=512 
+0000			;**************************************************************************** 
+0000			 
+0000			include	'../lib/memory.asm' 
+0000			;**************************************************************************** 
+0000			; 
+0000			;    Copyright (C) 2021 John Winans 
+0000			; 
+0000			;    This library is free software; you can redistribute it and/or 
+0000			;    modify it under the terms of the GNU Lesser General Public 
+0000			;    License as published by the Free Software Foundation; either 
+0000			;    version 2.1 of the License, or (at your option) any later version. 
+0000			; 
+0000			;    This library is distributed in the hope that it will be useful, 
+0000			;    but WITHOUT ANY WARRANTY; without even the implied warranty of 
+0000			;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU 
+0000			;    Lesser General Public License for more details. 
+0000			; 
+0000			;    You should have received a copy of the GNU Lesser General Public 
+0000			;    License along with this library; if not, write to the Free Software 
+0000			;    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 
+0000			;    USA 
+0000			; 
+0000			; https://github.com/johnwinans/2063-Z80-cpm 
+0000			; 
+0000			;**************************************************************************** 
+0000			 
+0000			; Define the memory size to be used for the CP/M configuration 
+0000			MEM:    equ 60 
+0000			 
+0000			; The CPM origin will be at: (MEM-7)*1024 
+0000			; This screwy convention is due to the way that that the CP/M origin is defined. 
+0000			CPM_BASE:	equ	(MEM-7)*1024 
+0000			LOAD_BASE:	equ	0xc000		; where the boot loader reads the image from the SD card
+# End of file ../lib/memory.asm
+0000				org	LOAD_BASE		; the second-stage load address 
+c000 31 00 c0			ld	sp,LOAD_BASE	; everything below LOAD BASE is available to the stack 
+c003			 
+c003				; XXX Note that the boot loader should have initialized the SIO, CTC etc. 
+c003				; XXX Therefore we can just write to them from here. 
+c003 21 2a c0			ld	    hl,.boot_msg 
+c006 cd eb c1			call	puts 
+c009			 
+c009			.loop: 
+c009				; turn on user led's 
+c009 3e 0f			ld 	a, gpio_out_1_user_0|gpio_out_1_user_1|gpio_out_1_user_2|gpio_out_1_user_3 
+c00b d3 20			out (gpio_out_1), a 
+c00d 06 14			ld	 b, 20 
+c00f cd 1e c0			call delay 
+c012			 
+c012				; turn off user led's 
+c012 3e 00			ld 	a, 0 
+c014 d3 20			out (gpio_out_1), a 
+c016 06 05			ld	 b, 5 
+c018 cd 1e c0			call delay 
+c01b			 
+c01b c3 09 c0			jp .loop 
+c01e			 
+c01e			;**************************************************************************** 
+c01e			; Delay function - Waste time & return - repeats the loop b times 
+c01e			; clobbers hl, b 
+c01e			;**************************************************************************** 
+c01e			delay: 
+c01e 21 00 20		    ld      hl,0x2000 
+c021			delay_loop: 
+c021 2b			    dec     hl 
+c022 7c			    ld      a,h 
+c023 b5			    or      l 
+c024 20 fb		    jr      nz,delay_loop 
+c026 05				dec 	b 
+c027 20 f5			jr		nz,delay 
+c029 c9			    ret 
+c02a			 
+c02a			;**************************************************************************** 
+c02a			; Constants  
+c02a			;**************************************************************************** 
+c02a			 
+c02a			.boot_msg: 
+c02a ..				db	"******************************************************************************\r\n" 
+c07a ..				db	" SUCCESS! - This code was loaded from the SD-Card!\r\n" 
+c0ae ..				db	" I blink some green LED's now to celebrate\r\n" 
+c0da ..			    db	"******************************************************************************\r\n\0" 
+c12b			 
+c12b			;**************************************************************************** 
+c12b			; Includes  
+c12b			;**************************************************************************** 
+c12b			include	'../lib/io.asm' 
+c12b			 
+c12b			;**************************************************************************** 
+c12b			;   TeachZ80 I/O definitions.  
+c12b			; 
+c12b			;   Original code from John Winans, Z80 Retro! 
+c12b			;**************************************************************************** 
+c12b			 
+c12b			;**************************************************************************** 
+c12b			;  TeachZ80 Version 1 IO port definitions 
+c12b			;**************************************************************************** 
+c12b			gpio_in_0:          equ     0x00        ; GP input port 0 
+c12b			gpio_in_1:          equ     0x50        ; GP input port 1 
+c12b			gpio_out_0:         equ     0x10        ; GP output port 0 
+c12b			gpio_out_1:         equ     0x20        ; GP output port 1, only lower 4 bits available 
+c12b			stm32_port:         equ     0x60        ; for communicaation with stm32 
+c12b			 
+c12b			sio_ad:             equ     0x30        ; SIO port A, data 
+c12b			sio_bd:             equ     0x31        ; SIO port B, data 
+c12b			sio_ac:             equ     0x32        ; SIO port A, control 
+c12b			sio_bc:             equ     0x33        ; SIO port B, control 
+c12b			 
+c12b			ctc_0:              equ     0x40        ; CTC port 0 
+c12b			ctc_1:              equ     0x41        ; CTC port 1 
+c12b			ctc_2:              equ     0x42        ; CTC port 2 
+c12b			ctc_3:              equ     0x43        ; CTC port 3 
+c12b			 
+c12b			flash_disable:      equ     0x70        ; dummy-read from this port to disable the FLASH and switch to RAM 
+c12b			 
+c12b			;**************************************************************************** 
+c12b			;  TeachZ80 Bit Assignments 
+c12b			;**************************************************************************** 
+c12b			; GP-Output-0 --------------------------------------------------------------- 
+c12b			gpio_out_0_sd_mosi: equ     0x01 
+c12b			gpio_out_0_sd_clk:  equ     0x02 
+c12b			gpio_out_0_sd_ssel: equ     0x04 
+c12b			gpio_out_0_user_8:  equ     0x08 
+c12b			gpio_out_0_a15:     equ     0x10 
+c12b			gpio_out_0_a16:     equ     0x20 
+c12b			gpio_out_0_a17:     equ     0x40 
+c12b			gpio_out_0_a18:     equ     0x80 
+c12b			 
+c12b			; GP-Output-1 --------------------------------------------------------------- 
+c12b			gpio_out_1_user_0:  equ     0x01 
+c12b			gpio_out_1_user_1:  equ     0x02 
+c12b			gpio_out_1_user_2:  equ     0x04 
+c12b			gpio_out_1_user_3:  equ     0x08 
+c12b			gpio_out_1_user_4:  equ     0x10 
+c12b			gpio_out_1_user_5:  equ     0x20 
+c12b			gpio_out_1_user_6:  equ     0x40 
+c12b			gpio_out_1_user_7:  equ     0x80 
+c12b			 
+c12b			; GP-Input-0 ---------------------------------------------------------------- 
+c12b			gpio_in_0_user_0:   equ     0x01 
+c12b			gpio_in_0_user_1:   equ     0x02 
+c12b			gpio_in_0_user_2:   equ     0x04 
+c12b			gpio_in_0_user_3:   equ     0x08 
+c12b			gpio_in_0_user_4:   equ     0x10 
+c12b			gpio_in_0_user_5:   equ     0x20 
+c12b			gpio_in_0_sd_det:   equ     0x40 
+c12b			gpio_in_0_sd_miso:  equ     0x80 
+c12b			 
+c12b			; GP-Input-1 ---------------------------------------------------------------- 
+c12b			gpio_in_1_user_6:   equ     0x01 
+c12b			gpio_in_1_user_7:   equ     0x02 
+c12b			gpio_in_1_user_8:   equ     0x04 
+c12b			gpio_in_1_user_9:   equ     0x08 
+c12b			 
+c12b			 
+c12b			;**************************************************************************** 
+c12b			;  Z80 Retro! definitions kept to maintain compatibility with Johns Software 
+c12b			;**************************************************************************** 
+c12b			; Z80 Retro Rev 3 IO port definitions 
+c12b			gpio_in:            equ     0x00        ; GP input port 
+c12b			gpio_out:           equ     0x10        ; GP output port 
+c12b			prn_dat:            equ     0x20        ; printer data out 
+c12b			 
+c12b			; bit-assignments for General Purpose output port  
+c12b			gpio_out_sd_mosi:   equ     0x01 
+c12b			gpio_out_sd_clk:    equ     0x02 
+c12b			gpio_out_sd_ssel:   equ     0x04 
+c12b			gpio_out_prn_stb:   equ     0x08 
+c12b			gpio_out_a15:       equ     0x10 
+c12b			gpio_out_a16:       equ     0x20 
+c12b			gpio_out_a17:       equ     0x40 
+c12b			gpio_out_a18:       equ     0x80 
+c12b			 
+c12b			; bit-assignments for General Purpose input port  
+c12b			gpio_in_prn_err:    equ     0x01 
+c12b			gpio_in_prn_stat:   equ     0x02 
+c12b			gpio_in_prn_papr:   equ     0x04 
+c12b			gpio_in_prn_bsy:    equ     0x08 
+c12b			gpio_in_prn_ack:    equ     0x10 
+c12b			gpio_in_user1:      equ     0x20  
+c12b			gpio_in_sd_det:     equ     0x40 
+c12b			gpio_in_sd_miso:    equ     0x80
+# End of file ../lib/io.asm
+c12b			include	'../lib/hexdump.asm' 
+c12b			;**************************************************************************** 
+c12b			; 
+c12b			;	 Copyright (C) 2021 John Winans 
+c12b			; 
+c12b			;	 This library is free software; you can redistribute it and/or 
+c12b			;	 modify it under the terms of the GNU Lesser General Public 
+c12b			;	 License as published by the Free Software Foundation; either 
+c12b			;	 version 2.1 of the License, or (at your option) any later version. 
+c12b			; 
+c12b			;	 This library is distributed in the hope that it will be useful, 
+c12b			;	 but WITHOUT ANY WARRANTY; without even the implied warranty of 
+c12b			;	 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU 
+c12b			;	 Lesser General Public License for more details. 
+c12b			; 
+c12b			;	 You should have received a copy of the GNU Lesser General Public 
+c12b			;	 License along with this library; if not, write to the Free Software 
+c12b			;	 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 
+c12b			;	 USA 
+c12b			; 
+c12b			; https://github.com/johnwinans/2063-Z80-cpm 
+c12b			; 
+c12b			;**************************************************************************** 
+c12b			 
+c12b			;############################################################################# 
+c12b			; Dump BC bytes of memory from address in HL. 
+c12b			; if E is zero, no fancy formatting 
+c12b			; Does not clobber any registers 
+c12b			;############################################################################# 
+c12b			hexdump: 
+c12b f5				push	af 
+c12c d5				push	de 
+c12d e5				push	hl 
+c12e c5				push	bc 
+c12f c3 4f c1			jp	    .hexdump0 
+c132			 
+c132			.hexdump_loop: 
+c132 7b				ld	    a,e			; fancy format or continuous? 
+c133 b7				or	    a 
+c134 28 0e			jr	    z,.hd_not8		; not fancy -> hd_not8 
+c136			 
+c136 7d				ld	    a,l 
+c137 e6 0f			and	    0x0f 
+c139 28 11			jr	    z,.hexdump0n 
+c13b fe 08			cp	    0x08			; put an extra space between positiioons 7 and 8 
+c13d 20 05			jr	    nz,.hd_not8 
+c13f 0e 20			ld	    c,' ' 
+c141 cd ca c1			call	con_tx_char 
+c144			.hd_not8: 
+c144 0e 20			ld	    c,' ' 
+c146 cd ca c1			call	con_tx_char 
+c149 c3 61 c1			jp	    .hexdump1 
+c14c			 
+c14c			.hexdump0n: 
+c14c cd fd c1			call	puts_crlf 
+c14f			.hexdump0: 
+c14f 7c				ld	    a,h 
+c150 cd 75 c1			call	hexdump_a 
+c153 7d				ld	    a,l 
+c154 cd 75 c1			call	hexdump_a 
+c157 0e 3a			ld	    c,':' 
+c159 cd ca c1			call	con_tx_char 
+c15c 0e 20			ld	    c,' ' 
+c15e cd ca c1			call	con_tx_char 
+c161				 
+c161			.hexdump1: 
+c161 7e				ld	    a,(hl) 
+c162 cd 75 c1			call	hexdump_a 
+c165 23				inc	    hl 
+c166			 
+c166 c1				pop	    bc 
+c167 0b				dec	    bc 
+c168 c5				push	bc 
+c169			 
+c169 78				ld	    a,b 
+c16a b1				or	    c 
+c16b 20 c5			jr	    nz,.hexdump_loop 
+c16d cd fd c1			call	puts_crlf 
+c170			 
+c170 c1				pop	    bc 
+c171 e1				pop	    hl 
+c172 d1				pop	    de 
+c173 f1				pop	    af 
+c174 c9				ret 
+c175			 
+c175			 
+c175			;############################################################################# 
+c175			; Print the value in A in hex 
+c175			; Clobbers C 
+c175			;############################################################################# 
+c175			hexdump_a: 
+c175 f5				push	af 
+c176 cb 3f			srl	a 
+c178 cb 3f			srl	a 
+c17a cb 3f			srl	a 
+c17c cb 3f			srl	a 
+c17e cd 8a c1			call	.hexdump_nib 
+c181 f1				pop	af 
+c182 f5				push	af 
+c183 e6 0f			and	0x0f 
+c185 cd 8a c1			call	.hexdump_nib 
+c188 f1				pop	af 
+c189 c9				ret 
+c18a			 
+c18a			.hexdump_nib: 
+c18a c6 30			add	'0' 
+c18c fe 3a			cp	'9'+1 
+c18e fa 93 c1			jp	m,.hexdump_num 
+c191 c6 07			add	'A'-'9'-1 
+c193			.hexdump_num: 
+c193 4f				ld	c,a 
+c194 c3 ca c1			jp	con_tx_char	   ; tail
+# End of file ../lib/hexdump.asm
+c197			include '../lib/sio.asm' 
+c197			;**************************************************************************** 
+c197			; 
+c197			;	 Copyright (C) 2021 John Winans 
+c197			; 
+c197			;	 This library is free software; you can redistribute it and/or 
+c197			;	 modify it under the terms of the GNU Lesser General Public 
+c197			;	 License as published by the Free Software Foundation; either 
+c197			;	 version 2.1 of the License, or (at your option) any later version. 
+c197			; 
+c197			;	 This library is distributed in the hope that it will be useful, 
+c197			;	 but WITHOUT ANY WARRANTY; without even the implied warranty of 
+c197			;	 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU 
+c197			;	 Lesser General Public License for more details. 
+c197			; 
+c197			;	 You should have received a copy of the GNU Lesser General Public 
+c197			;	 License along with this library; if not, write to the Free Software 
+c197			;	 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 
+c197			;	 USA 
+c197			; 
+c197			; https://github.com/johnwinans/2063-Z80-cpm 
+c197			; 
+c197			;**************************************************************************** 
+c197			 
+c197			; Drivers for the SIO  
+c197			 
+c197			;############################################################## 
+c197			; Return NZ if sio A tx is ready 
+c197			; Clobbers: AF 
+c197			;############################################################## 
+c197			sioa_tx_ready: 
+c197 db 32			in	a,(sio_ac)	; read sio control status byte 
+c199 e6 04			and	4		    ; check the xmtr empty bit 
+c19b c9				ret			    ; a = 0 = not ready 
+c19c			 
+c19c			;############################################################## 
+c19c			; Return NZ if sio B tx is ready 
+c19c			; Clobbers: AF 
+c19c			;############################################################## 
+c19c			siob_tx_ready: 
+c19c db 33			in	a,(sio_bc)	; read sio control status byte 
+c19e e6 04			and	4		    ; check the xmtr empty bit 
+c1a0 c9				ret			    ; a = 0 = not ready 
+c1a1			 
+c1a1			;############################################################## 
+c1a1			; Return NZ (with A=1) if sio A rx is ready and Z (with A=0) if not ready. 
+c1a1			; Clobbers: AF 
+c1a1			;############################################################## 
+c1a1			con_rx_ready: 
+c1a1			sioa_rx_ready: 
+c1a1 db 32			in	a,(sio_ac)	; read sio control status byte 
+c1a3 e6 01			and	1		    ; check the rcvr ready bit 
+c1a5 c9				ret			    ; 0 = not ready 
+c1a6			 
+c1a6			;############################################################## 
+c1a6			; Return NZ (with A=1) if sio B rx is ready and Z (with A=0) if not ready.  
+c1a6			; Clobbers: AF 
+c1a6			;############################################################## 
+c1a6			siob_rx_ready: 
+c1a6 db 33			in	a,(sio_bc)	; read sio control status byte 
+c1a8 e6 01			and	1		    ; check the rcvr ready bit 
+c1aa c9				ret			    ; 0 = not ready 
+c1ab			 
+c1ab			;############################################################## 
+c1ab			; init SIO port A/B 
+c1ab			; Clobbers HL, BC, AF 
+c1ab			;############################################################## 
+c1ab			siob_init: 
+c1ab 0e 33			ld	c,sio_bc	; port to write into (port B control) 
+c1ad c3 b2 c1			jp	.sio_init 
+c1b0			 
+c1b0			sioa_init: 
+c1b0 0e 32			ld	c,sio_ac	; port to write into (port A control) 
+c1b2			 
+c1b2			.sio_init: 
+c1b2 21 ba c1			ld	hl,.sio_init_wr	; point to init string 
+c1b5 06 07			ld	b,.sio_init_len_wr ; number of bytes to send 
+c1b7 ed b3			otir			; write B bytes from (HL) into port in the C reg 
+c1b9 c9				ret 
+c1ba			 
+c1ba			;############################################################## 
+c1ba			; Initialization string for the Z80 SIO 
+c1ba			;############################################################## 
+c1ba			.sio_init_wr: 
+c1ba 18				db	00011000b	; wr0 = reset everything 
+c1bb 04				db	00000100b	; wr0 = select reg 4 
+c1bc 44				db	01000100b	; wr4 = /16 N1 (115200 from 1.8432 MHZ clk) 
+c1bd 03				db	00000011b	; wr0 = select reg 3 
+c1be c1				db	11000001b	; wr3 = RX enable, 8 bits/char 
+c1bf 05				db	00000101b	; wr0 = select reg 5 
+c1c0 68				db	01101000b	; wr5 = DTR=0, TX enable, 8 bits/char 
+c1c1			.sio_init_len_wr:   equ $-.sio_init_wr 
+c1c1			 
+c1c1			;############################################################## 
+c1c1			; Wait for the transmitter to become ready and then 
+c1c1			; print the character in the C register. 
+c1c1			; Clobbers: AF 
+c1c1			;############################################################## 
+c1c1			siob_tx_char: 
+c1c1 cd 9c c1			call siob_tx_ready 
+c1c4 28 fb			jr	 z,siob_tx_char 
+c1c6 79				ld	 a,c 
+c1c7 d3 31			out	 (sio_bd),a	; send the character 
+c1c9 c9				ret 
+c1ca			 
+c1ca			con_tx_char: 
+c1ca			sioa_tx_char: 
+c1ca cd 97 c1			call sioa_tx_ready 
+c1cd 28 fb			jr	 z,sioa_tx_char 
+c1cf 79				ld	 a,c 
+c1d0 d3 30			out  (sio_ad),a	; send the character 
+c1d2 c9				ret 
+c1d3			 
+c1d3			;############################################################## 
+c1d3			; Wait for the receiver to become ready and then return the  
+c1d3			; character in the A register. 
+c1d3			; Clobbers: AF 
+c1d3			;############################################################## 
+c1d3			siob_rx_char: 
+c1d3 cd a6 c1			call	siob_rx_ready 
+c1d6 28 fb			jr	z,siob_rx_char 
+c1d8 3a 31 00			ld	a,(sio_bd) 
+c1db c9				ret 
+c1dc			 
+c1dc			con_rx_char: 
+c1dc			sioa_rx_char: 
+c1dc cd a1 c1			call	sioa_rx_ready 
+c1df 28 fb			jr	z,sioa_rx_char 
+c1e1 db 30			in	a,(sio_ad) 
+c1e3 c9				ret
+# End of file ../lib/sio.asm
+c1e4			include '../lib/puts.asm'
+c1e4			;**************************************************************************** 
+c1e4			; 
+c1e4			;    Copyright (C) 2021 John Winans 
+c1e4			; 
+c1e4			;    This library is free software; you can redistribute it and/or 
+c1e4			;    modify it under the terms of the GNU Lesser General Public 
+c1e4			;    License as published by the Free Software Foundation; either 
+c1e4			;    version 2.1 of the License, or (at your option) any later version. 
+c1e4			; 
+c1e4			;    This library is distributed in the hope that it will be useful, 
+c1e4			;    but WITHOUT ANY WARRANTY; without even the implied warranty of 
+c1e4			;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU 
+c1e4			;    Lesser General Public License for more details. 
+c1e4			; 
+c1e4			;    You should have received a copy of the GNU Lesser General Public 
+c1e4			;    License along with this library; if not, write to the Free Software 
+c1e4			;    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 
+c1e4			;    USA 
+c1e4			; 
+c1e4			; https://github.com/johnwinans/2063-Z80-cpm 
+c1e4			; 
+c1e4			;**************************************************************************** 
+c1e4			 
+c1e4			;############################################################## 
+c1e4			; Write the null-terminated string starting after the call 
+c1e4			; instruction invoking this subroutine to the console. 
+c1e4			; Clobbers AF, C 
+c1e4			;############################################################## 
+c1e4			iputs: 
+c1e4 e3			        ex      (sp),hl                 ; hl = @ of string to print 
+c1e5 cd f1 c1			call	.puts_loop 
+c1e8 23			        inc     hl                      ; point past the end of the string 
+c1e9 e3			        ex      (sp),hl 
+c1ea c9			        ret 
+c1eb			 
+c1eb			;############################################################## 
+c1eb			; Write the null-terminated staring starting at the address in  
+c1eb			; HL to the console.   
+c1eb			; Clobbers: AF, C 
+c1eb			;############################################################## 
+c1eb			puts: 
+c1eb e5				push	hl 
+c1ec cd f1 c1			call	.puts_loop 
+c1ef e1				pop	hl 
+c1f0 c9				ret 
+c1f1			 
+c1f1			.puts_loop: 
+c1f1 7e			        ld      a,(hl)                  ; get the next byte to send 
+c1f2 b7			        or      a 
+c1f3 28 07		        jr      z,.puts_done            ; if A is zero, return 
+c1f5 4f			        ld      c,a 
+c1f6 cd ca c1		        call    con_tx_char 
+c1f9 23			        inc     hl                      ; point to next byte to write 
+c1fa 18 f5		        jr      .puts_loop 
+c1fc			.puts_done: 
+c1fc c9			        ret 
+c1fd			 
+c1fd			;############################################################## 
+c1fd			; Print a CRLF  
+c1fd			; Clobbers AF, C 
+c1fd			;############################################################## 
+c1fd			puts_crlf: 
+c1fd cd e4 c1		        call    iputs 
+c200 ..			        defb    '\r\n\0' 
+c203 c9			        ret 
+c204			 
+c204			;############################################################## 
+c204			; Prints the (unsigned) value in HL as a decimal value to the 
+c204			; console. If e is 1, leading zeros are not printed 
+c204			; Clobbers AF 
+c204			;############################################################## 
+c204			puts_decimal: 
+c204 e5			        push    hl 
+c205 c5			        push    bc 
+c206 d5			        push    de 
+c207 01 f0 d8		        ld      bc, -10000 
+c20a cd 2a c2		        call    .puts_decimal_start 
+c20d 01 18 fc		        ld      bc, -1000 
+c210 cd 2a c2		        call    .puts_decimal_start 
+c213 01 9c ff		        ld      bc, -100 
+c216 cd 2a c2		        call    .puts_decimal_start 
+c219 01 f6 ff		        ld      bc, -10 
+c21c cd 2a c2		        call    .puts_decimal_start 
+c21f 3e 30		        ld      a,'0' 
+c221 85			        add     a, l 
+c222 4f			        ld      c, a 
+c223 cd ca c1		        call    con_tx_char 
+c226 d1			        pop     de 
+c227 c1			        pop     bc 
+c228 e1			        pop     hl 
+c229 c9			        ret 
+c22a			         
+c22a			.puts_decimal_start: 
+c22a 16 ff		        ld      d,-1                    ; use d as a counter 
+c22c			.puts_decimal_loop: 
+c22c 14			        inc     d                       ; increment d 
+c22d 09			        add     hl,bc                   ; hl = hl + bc (bc is negative). if result is < 0, carry is set 
+c22e 30 fc		        jr      nc,.puts_decimal_loop   ; if carry is 0, hl was bigger than -bc, continue loop 
+c230 ed 42		        sbc     hl,bc                   ; hl = hl-bc-c. (bc is negative) restores hl to what it was before the last loop 
+c232 7a			        ld      a, d                    ; check if d is zero 
+c233 b7			        or      a                        
+c234 20 04		        jr      nz,.puts_dec_print      ; if not zero, print it 
+c236 7b			        ld      a, e                    ; if zero, check e 
+c237 b7			        or      a 
+c238 20 09		        jr      nz,.puts_dec_skip       ; if e is not zero, skip printing d 
+c23a			.puts_dec_print: 
+c23a 7a			        ld      a, d                    ; add ascii of '0' 
+c23b c6 30		        add     '0' 
+c23d 4f			        ld      c, a                    ; store in c to print         
+c23e 1e 00		        ld      e, 0                    ; clear e, all following characters print now 
+c240 cd ca c1		        call    con_tx_char 
+c243			.puts_dec_skip: 
+c243 c9			        ret
+# End of file ../lib/puts.asm
+# End of file hello-sd-card.asm
+c244
