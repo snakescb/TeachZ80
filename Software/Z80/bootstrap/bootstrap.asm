@@ -28,7 +28,7 @@
 .boot_version_major:	equ	   1
 .boot_version_minor:	equ	   0
 .low_bank:              equ   14        ; Use low bank 14
-.load_blks:	            equ	  32        ; SD blocksize is 512, gives 16k to load //TBD! Should be 32, but crashes
+.load_blks:	            equ	  32        ; SD blocksize is 512, gives 16k to load
 
 ;****************************************************************************
 ; Required includes (others follow at the bottom of the code) 
