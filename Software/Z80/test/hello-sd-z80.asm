@@ -35,10 +35,6 @@
 
 include	'../lib/memory.asm'
 
-.debug:	equ	1		        ; Set to 1 to show debug printing, else 0 
-.stacktop: equ LOAD_BASE	; So the loaded code from the SD is not overwritten by the stack
-							; the final bios will be loaded from C000 to FFFF (16k)
-
 	org	0x0000			    ; Cold reset Z80 entry point.
 
 ;##############################################################################
@@ -64,7 +60,7 @@ include	'../lib/memory.asm'
 ;##############################################################################
 ; STARTING HERE, WE ARE RUNNING FROM RAM
 ;############################################################################## 
-	ld	sp,.stacktop
+	ld	sp,LOAD_BASE
 
 	; init console SIO. Uses /16 divider (115200 from 1.8432 MHZ clk)
 	call	sioa_init
@@ -101,149 +97,50 @@ include	'../lib/memory.asm'
 	call	iputs
 	db	'\r\nReading SD card block zero\r\n\n\0'
 
-	; check if sd card is attached using the sd detect signal (must read 0)
-	in		a,(gpio_in_0)
-	and 	gpio_in_sd_det
-	jr		z,.boot_sd_0
+	; ######################### Initialize SD Card #########################
+	call 	sd_initialize					; initialize sd card
+	or		a								; check if a is zero > card initialized successfully
+	jp		z,.load_mbr						; read the first sector
 
-	call	iputs
-	db	'Error: No SD Card present in slot\r\n\n\0'
+	; ######################### Init Error Priting #########################
+	cp		6								; error 6, no card in slot
+	jp		nz, .sd_init_print_error		; every other error, print error code
+	call	iputs							
+	db		"\r\nError: No SD card detected in slot\r\n\0"
 	ret
 
-.boot_sd_0:
-	call	sd_boot		; transmit 74+ CLKs
-
-	; The response byte should be 0x01 (idle) from cmd0
-	call	sd_cmd0
-	cp	0x01
-	jr	z,.boot_sd_1
-
+.sd_init_print_error:						; print any other error message
+	push	af
 	call	iputs
-	db	'Error: Can not read SD card (cmd0 command status not idle)\r\n\n\0'
+	db		"\r\nError: Cannot initialize SD card. Error message: 0x\0"
+	pop 	af
+	call 	hexdump_a
+	call 	puts_crlf
 	ret
 
-.boot_sd_1:
-	ld	de,LOAD_BASE	; Use the load area for a temporary buffer
-	call	sd_cmd8		; CMD8 is sent to verify that we have a Version 2+ SD card
-						; and agree on the operating voltage.
-						; CMD8 also expands the functionality of CMD58 and ACMD41
+.load_mbr:
+	; ########## Read the first block on the card (MBR) to LOAD_BASE ##########
+	ld	    hl, 0			                ; SD card block number to read, 32bit
+	push    hl			                    ; push high word to stack
+	push    hl			                    ; push low word to stack
+	ld	    de,LOAD_BASE		            ; where to store the sector data
+	call    sd_readBlock					; read the block from the card
+	pop	    hl			                    ; remove the block number from the stack again
+	pop	    hl								; remove the block number from the stack again
+	or	    a                               ; check if a is zero > block read successfully
+	jp		z,.start_application				
 
-	; The response should be: 0x01 0x00 0x00 0x01 0xAA.
-	ld	a,(LOAD_BASE)
-	cp	1
-	jr	z,.boot_sd_2
-
+	; ####################### MBR Read Error Priting #######################	
+	push	af
 	call	iputs
-	db	'Error: Can not read SD card (cmd8 command status not valid):\r\n\n\0'
-
-	; dump the command response buffer
-	ld	hl,LOAD_BASE	; dump bytes from here
-	ld	e,0				; no fancy formatting
-	ld	bc,5			; dump 5 bytes
-	call	hexdump
-	call	puts_crlf
+	db		"\r\nError: Cannot read MBR from SD card. Error message: 0x\0"
+	pop 	af
+	call 	hexdump_a
+	call 	puts_crlf
 	ret
 
-.boot_sd_2:
-; After power cycle, card is in 3.3V signaling mode.  We do not intend 
-; to change it nor we we care about what other options may be available.
-; Therefore the CMD58 does not appear to serve any a purpose at this time. 
-;	ld	de,LOAD_BASE
-;	call	sd_cmd58		; cmd58 = read OCR (operation conditions register)
-
-.ac41_max_retry: equ 0x80	; limit the number of ACMD41 retries to 128
-
-	ld	b,.ac41_max_retry
-.ac41_loop:
-	push	bc				; save BC since B contains the retry count 
-	ld	de,LOAD_BASE		; store command response into LOAD_BASE
-	call	sd_acmd41		; ask if the card is ready
-	pop	bc					; restore our retry counter
-	or	a					; check to see if A is zero
-	jr	z,.ac41_done		; is A is zero, then the card is ready
-
-	; Card is not ready, waste some time before trying again
-	ld	hl,0x1000			; count to 0x1000 to consume time
-.ac41_dly:
-	dec	hl					; HL = HL -1
-	ld	a,h					; does HL == 0?
-	or	l
-	jr	nz,.ac41_dly		; if HL != 0 then keep counting
-
-	djnz	.ac41_loop		; if (--retries != 0) then try again
-
-.ac41_fail:
-	call	iputs
-	db	'ERROR: Can not read SD card (ac41 command failed)\r\n\n\0'
-	ret
-
-.ac41_done:
-if .debug
-	call	iputs
-	db	'** Note: Called ACMD41 0x\0'
-	ld	a,.ac41_max_retry
-	sub	b
-	inc	a			; account for b not yet decremented on last time
-	call	hexdump_a
-	call	iputs
-	db	' times.\r\n\0'
-endif
-
-	; Find out the card capacity (SDHC or SDXC)
-	; This status is not valid until after ACMD41.
-	ld	de,LOAD_BASE
-	call	sd_cmd58
-
-if .debug
-	call	iputs
-	db	'** Note: Called CMD58: R3: \0'
-	ld	hl,LOAD_BASE
-	ld	bc,5
-	ld	e,0
-	call	hexdump			; dump the response message from CMD58
-endif
-
-	; Check that CCS=1 here to indicate that we have an HC/XC card
-	ld	a,(LOAD_BASE+1)
-	and	0x40				; CCS bit is here (See SD spec p275)
-	jr	nz,.boot_hcxc_ok
-
-	call	iputs
-	db	'ERROR: SD card capacity is not SDHC or SDXC.\r\n\n\0'
-	ret
-
-.boot_hcxc_ok:
-	; ############ Read block number zero into memory at 'LOAD_BASE' ############
-
-	; push the starting block number onto the stack in little-endian order
-	ld	hl,0				; SD card block number to read
-	push	hl				; high half
-	push	hl				; low half
-	ld	de,LOAD_BASE		; where to read the sector data into
-	call	sd_cmd17
-	pop	hl					; remove the block number from the stack
-	pop	hl
-
-	or	a
-	jr	z,.boot_cmd17_ok	; if CMD17 ended OK then run the code
-
-	call	iputs
-	db	'ERROR: SD card CMD17 failed to read block zero.\r\n\n\0'
-	ret
-
-.boot_cmd17_ok:
-
-if .debug
-	call	iputs
-	db	'\r\nThe block has been read!\r\n\0'
-
-	ld	hl,LOAD_BASE		; Dump the block we read from the SD card
-	ld	bc,0x200			; 512 bytes to dump
-	ld	e,1					; and make it all all purdy like
-	call	hexdump
-	call	puts_crlf
-endif
-
+	; #################### Start the loaded Application ####################
+.start_application:
 	call	iputs
 	db	'Starting code read from SD card now!\r\n\n\0'
 	jp	LOAD_BASE			; Go execute what ever came from the SD card

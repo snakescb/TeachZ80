@@ -1,6 +1,6 @@
 default: clean all
 
-all: blink-flash blink-ram
+all: blink-flash blink-ram serial-polled
 
 blink-flash: blink-flash.bin
 blink-ram: blink-ram.bin
