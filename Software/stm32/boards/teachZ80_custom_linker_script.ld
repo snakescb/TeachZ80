@@ -23,10 +23,10 @@ _Min_Stack_Size = 0x400; /* required amount of stack */
 /* Memories definition */
 MEMORY
 {
-  ISR_VECTOR (rx)       : ORIGIN = 0x8000000,  LENGTH = 16*1024                 /* occupies the entire first flash sector (16kByte) */
-  CONFIG (rx)           : ORIGIN = 0x8004000,  LENGTH = 16*1024                 /* occupies the entire second flash sector (16kByte) - Will not be dowloaded */
-  FLASH (rx)            : ORIGIN = 0x8008000,  LENGTH = LD_MAX_SIZE - 32*1024   /* occupies the rest of the flash */
-  RAM (xrw)             : ORIGIN = 0x20000000, LENGTH = LD_MAX_DATA_SIZE
+  ISR_VECTOR (rx)       : ORIGIN = 0x8000000,  LENGTH = 0x2000                    /* occupies the entire first flash sector (16kByte) */
+  CONFIG (rx)           : ORIGIN = 0x8004000,  LENGTH = 0x2000                    /* Will hold the board configuration, is Flash sector 1 */
+  FLASH (rx)            : ORIGIN = 0x8008000,  LENGTH = LD_MAX_SIZE - 0x8000      /* Offset by 0x8000, rmaining flash */
+  RAM (xrw)             : ORIGIN = 0x20000200, LENGTH = LD_MAX_DATA_SIZE - 0x200  /* Offset ram by 512 bytes, these will be used to hold the vector table in RAM */
 }
 
 /* Sections */
@@ -41,15 +41,6 @@ SECTIONS
     _isr_vector_end = .;
     . = ALIGN(4);
   } >ISR_VECTOR
-
-  .config_flash (NOLOAD): 
-  {
-    . = ALIGN(4);
-    _config_start = .;
-    KEEP(*(.config_flash))
-    _config_end = .;
-    . = ALIGN(4);
-  } >CONFIG
 
   /* The program code and other data into "FLASH" Rom type memory */
   .text :

@@ -63,12 +63,12 @@ void setup() {
 		clock.configureChannel(1, config.configdata.clock.sioaClock, clock.DIV1, clock.PLLB, clock.ENABLE);  //1.8432 MHZ Clock SIOA
 		clock.configureChannel(2, config.configdata.clock.siobClock, clock.DIV1, clock.PLLB, clock.ENABLE);  //1.8432 MHZ Clock SIOB
 	}
-	
+
+	z80io_interrupt_config();	
 	console.begin();
 	z80bus.resetZ80();
 	delay(STARTUP_DELAY_ms);
-
-	z80io_interrupt_config();
+	
 	applicationState = Idle;
 	statusLed.set(IDLE_LED_ON_PERIOD, IDLE_LED_OFF_PERIOD);
 }

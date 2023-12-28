@@ -15,7 +15,7 @@
 #define PORTC_CONTROL_LINES_IN_USE  0x0C00      //on port C pin 10,11 used by the control bus
 
 //timings
-#define RESET_PULSE_LEN_ms  300
+#define RESET_PULSE_LEN_ms  100
 
 //makros for reading control lines
 #define WR_IS_HIGH       (GPIOC->IDR & GPIO_PIN_10)
@@ -78,6 +78,7 @@ Z80Bus::Z80Bus(void) {
     GPIOC->PUPDR = setPortBits(GPIOC->PUPDR, PORTC_BUS_LINES_IN_USE, 0x00, true);
 
     //release all lines
+    RESET_SET;
     release_bus();
 }
 
@@ -125,6 +126,7 @@ void Z80Bus::write_controlBit(Z80Bus_controlBits bit, bool state) {
     if ((bit == wr    ) && !state) WR_CLR;
     if ((bit == wait  ) &&  state) WAIT_SET;
     if ((bit == wait  ) && !state) WAIT_CLR;
+    delayMicroseconds(1);   
 }
 
 /*--------------------------------------------------------------------------------------------------------

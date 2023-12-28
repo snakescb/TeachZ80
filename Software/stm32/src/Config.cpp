@@ -1,7 +1,7 @@
 #include <Config.h>
 
 /* Types and definitions ------------------------------------------------------------------------------- */  
-#define CONFIG_CHECKSUM_START  	0xAA
+#define CONFIG_CHECKSUM_START  	0xBB
 #define CONFIG_BASE_ADDRESS		0x8004000
 
 /* -----------------------------------------------------------------------
@@ -15,8 +15,8 @@ Config::Config() { }
 void Config::defaults(void) {
 	
 	configdata.clock.z80Clock = 10000000;
-	configdata.clock.sioaClock = 1843200;
-	configdata.clock.siobClock = 1843200;
+	configdata.clock.sioaClock = 7372800;
+	configdata.clock.siobClock = 7372800;
 
 	configdata.flash.dumpStart = 0x0000;
 	configdata.flash.dumpEnd = 0x03FF;
