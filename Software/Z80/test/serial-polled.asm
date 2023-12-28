@@ -40,8 +40,8 @@ stacktop:   equ 0   ; end of RAM + 1
     ld      sp,stacktop
 
     ; init both SIO channels. Uses /16 divider (115200 from 1.8432 MHZ clk)
-    call    sioa_init
-    call    siob_init
+    call    sioa_init_64
+    call    siob_init_64
 
     ;print hello world string
     ld      hl,helloWorld

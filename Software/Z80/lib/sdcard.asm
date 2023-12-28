@@ -191,7 +191,7 @@ sd_initialize:
 	; The response should be: 0x01 0x00 0x00 0x01 0xAA.
 	; for simplicity we just check the first byte for now
 .sd_access_cmd_8:
-	ld		b,5							; 1 byte response expected
+	ld		b,5							; 5 byte response expected
 	ld 		ix,.sd_cmd8					; send CMD 8
 	call 	.sd_command					; send
 	ld		a,(.sd_scratch)				; check received byte
@@ -203,9 +203,12 @@ sd_initialize:
 	; **** SEND ACMD41 (SD_SEND_OP_COND) **************************************	
 	; this must be sent after a CMD 55 (APP_CMD), and can take up to one second
 	; The response od CMD 55 should be 0x01, ACMD41 should return 0x00 (ready!)
-	; if a try does is not successful, waste a bit of time
-	ld		d,0xFF						; maximum tries for ACMD55, use d as a counter
+	; if a try does is not successful, waste a bit of time. increase the wait time 
+	; with every try, getting the card ready can take up to one second
 .sd_access_acmd_41:
+	ld		d, 0xFF						; maximum tries for ACMD55, use d as a counter
+	ld		hl,0						; inital wait time
+.sd_access_acmd_41_next:
 	ld		b,1							; 1 byte response expected for CMD 55
 	ld 		ix,.sd_cmd55				; send CMD 55
 	call 	.sd_command					; send
@@ -218,15 +221,20 @@ sd_initialize:
 	cp		0x00						; must be 0x00
 	jr	    z,.sd_access_cmd_58			; jump to next command if it is
 .sd_access_acmd_41_delay:			
-	ld 		hl, 0x0100					; loop counter for delay
+	dec		d							; decrement try counter				
+	jr		z,.sd_access_acmd_41_error  ; if zero, return error
+	ld		bc, 0x100					; increment the wait time
+	add		hl, bc						
+	push 	hl	
 .sd_access_acmd_41_delay_loop:
 	dec		hl							; decrement until hl is 0
 	ld		a,h
 	or		l
 	jr		nz,.sd_access_acmd_41_delay_loop
-	dec		d							; decrement d, check if maximum amount of tries exceeded
-	jr		nz,.sd_access_acmd_41		; if the counter is not 0, start next try
-	ld		a, 3						; else, return error 3
+	pop		hl							; restore hl for next loop
+	jr		.sd_access_acmd_41_next		; start next try
+.sd_access_acmd_41_error:
+	ld		a, 3						; timeout, return error 3
 	ret
 
 	; **** SEND CMD 58 (READ_OCR) ********************************************	

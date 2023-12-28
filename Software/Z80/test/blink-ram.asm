@@ -103,6 +103,7 @@ enable_disk:
     out     (gpio_out_0),a 
 
     ; test for stm32 ioreq
+    inc     b
     ld      a,(stm32_data)                  ; Load stm32_data to a
     inc     a                               ; increment it
     ld      (stm32_data),a                  ; store back 

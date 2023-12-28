@@ -54,7 +54,7 @@ bootstrap:  org  0x0000						; Z80 cold boot vector
 ; CONTINUE FROM RAM
 ;############################################################################## 
 	ld      sp, LOAD_BASE                  	; Load stackpointer at LOAD_BASE
-	call    sioa_init                       ; Init the Console SIO
+	call    sioa_init_64                    ; Init the Console SIO, use 64 divider (115200@7.372MHz Clock)
 	call    .print_boot_message             ; Display boot message.
 	
 ;******************************************************************************
