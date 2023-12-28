@@ -78,14 +78,14 @@ bootstrap:  org  0x0000						; Z80 cold boot vector
 ;##############################################################################
 .boot_sd:
 	call	iputs
-	db		"\r\nBooting from SD card\r\nReading SD card MBR...\0"
+	db		"\r\nBooting from SD card\r\nReading Master Boot Record ...\0"
 
 	; ######################### Initialize SD Card #########################
 	call 	sd_initialize					; initialize sd card
 	or		a								; check if a is zero > card initialized successfully
 	jp		z,.load_mbr						; read the first sector
 
-	; SD card initialization error printing
+	; ######################### Init Error Priting #########################
 	cp		6								; error 6, no card in slot
 	jp		nz, .sd_init_print_error		; every other error, print error code
 	call	iputs							
@@ -113,7 +113,7 @@ bootstrap:  org  0x0000						; Z80 cold boot vector
 	or	    a                               ; check if a is zero > block read successfully
 	jp		z,.load_os				
 
-	; MBR loeading read error
+	; ####################### MBR Read Error Priting #######################
 	push	af
 	call	iputs
 	db		"\r\nError: Cannot read MBR from SD card. Error message: 0x\0"
@@ -124,11 +124,11 @@ bootstrap:  org  0x0000						; Z80 cold boot vector
 
 .load_os:
 	call	iputs							
-	db		" done\r\n\0"
+	db		" done\r\nSD Partition 1 checked OK\r\n\0"
 
 	; ############ Load the OS from the SD card into LOAD_BASE ##############
 	call	iputs
-	db		'Loading Operating System...\0'
+	db		'Loading Operating System ...\0'
 
 	ld	    ix,LOAD_BASE+0x01BE+0x08		; this will point to the block number of partition 1
 	ld	    h,(ix+3)						; block number 31-24 -> H
