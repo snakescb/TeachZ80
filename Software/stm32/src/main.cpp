@@ -21,7 +21,7 @@
 #define STARTUP_DELAY_ms	 500
 
 // In idle, one quick blink every 5 seconds
-#define IDLE_LED_ON_PERIOD		1
+#define IDLE_LED_ON_PERIOD	   10
 #define IDLE_LED_OFF_PERIOD  4999
 
 // In Flash Mode, one second blinks
@@ -32,9 +32,9 @@ enum ApplicationState : byte { Idle, FlashMode };
 
 /* Variables and instances ------------------------------------------------------------------------------ */
 ApplicationState applicationState ;
-Led statusLed(PA4);
-Button button(PH3);
-Si5153 clock(PA3, PA5);
+Led statusLed(PA2);
+Button button(PD2);
+Si5153 clock(PA11, PA12);
 Config config;
 Console console;
 Z80Bus z80bus;
@@ -50,6 +50,7 @@ FlashLoader flashloader(z80flash);
 
 /* Initialization --------------------------------------------------------------------------------------- */
 void setup() {
+	HAL_MPU_Disable();
 	Serial.setTx(PA9);
 	Serial.setRx(PA10);	
 	Serial.begin(115200);
@@ -62,12 +63,12 @@ void setup() {
 		clock.configureChannel(1, config.configdata.clock.sioaClock, clock.DIV1, clock.PLLB, clock.ENABLE);  //1.8432 MHZ Clock SIOA
 		clock.configureChannel(2, config.configdata.clock.siobClock, clock.DIV1, clock.PLLB, clock.ENABLE);  //1.8432 MHZ Clock SIOB
 	}
-
-	z80io_interrupt_config();
+	
 	console.begin();
 	z80bus.resetZ80();
 	delay(STARTUP_DELAY_ms);
 
+	z80io_interrupt_config();
 	applicationState = Idle;
 	statusLed.set(IDLE_LED_ON_PERIOD, IDLE_LED_OFF_PERIOD);
 }
@@ -79,61 +80,7 @@ void loop() {
 	flashloader.process();
    	statusLed.process();
    	button.process();
-
-	/*
-	static uint32_t testtime = 0;
-	static bool ok = false;
-	if (!ok) {
-		if (millis() - testtime > 1000) {
-			testtime = millis();
-
-			Z80SDCard::sdResult result = z80sdcard.accessCard(true);
-			if (result == z80sdcard.ok) Serial.println("Access: SD Card OK");
-			if (result == z80sdcard.nocard) Serial.println("Access: No SD Card in slot");
-			if (result == z80sdcard.not_idle) Serial.println("Access: SD Card not idle");
-			if (result == z80sdcard.invalid_status) Serial.println("Access: SD Card onvalid status");
-			if (result == z80sdcard.invalid_status) Serial.println("Access: SD Card is not ready");
-			if (result == z80sdcard.invalid_capacity) Serial.println("Access: SD Card is not SDHC or SDXC");
-
-			result = z80sdcard.readBlock(0, z80sdcard.sdDataBuffer);
-			if (result == z80sdcard.ok) {
-
-				uint16_t numlines = 512 >> 4;
-				uint16_t address = 0;
-				uint8_t databuffer[16];
-				for (unsigned int i=0; i<numlines; i++) {
-					for (int j=0; j<16; j++) databuffer[j] = z80sdcard.sdDataBuffer[address + j];
-					Serial.printf(" %04X: ", address);
-					for (int j=0; j<8; j++) Serial.printf(" %02X", databuffer[j]);
-					Serial.print(" ");
-					for (int j=8; j<16; j++) Serial.printf(" %02X", databuffer[j]);
-					Serial.print("  ");
-
-					for (int j=0; j<16; j++) {
-						if ((databuffer[j] >= 21) && (databuffer[j] < 127)) Serial.write(databuffer[j]);
-						else Serial.write('.');
-					}
-					Serial.println();
-					address += 0x10;
-				}
-
-				uint8_t testbuffer[512];
-				for (int i=0; i<512; i++) testbuffer[i] = i;
-				result = z80sdcard.writeBlock(0, testbuffer);
-
-				if (result == z80sdcard.ok) Serial.println("Write: OK!");
-				if (result == z80sdcard.not_idle) Serial.println("Write: ERROR - Card Not ready");
-				if (result == z80sdcard.write_timeout_1) Serial.println("Write: ERROR - Timeout 1");
-				if (result == z80sdcard.write_timeout_2) Serial.println("Write: ERROR - Timeout 2");
-
-				ok=true;
-			}
-			else Serial.println("Read: ERROR");
-			z80sdcard.accessCard(false);
-
-		}
-	}
-	*/
+	z80io.process();
 
 	//Reception of serial characters
 	int rx = Serial.read();
@@ -166,38 +113,35 @@ void loop() {
 --------------------------------------------------------------------------------------------------------- */
 void SystemClock_Config(void) {
 
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-  /** Configure the main internal regulator output voltage
-  */
-  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK) Error_Handler();
+ 	/** Configure the main internal regulator output voltage */
+  	__HAL_RCC_PWR_CLK_ENABLE();
+  	__HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSEState = RCC_HSE_OFF;
-  RCC_OscInitStruct.LSEState = RCC_LSE_OFF;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 1;
-  RCC_OscInitStruct.PLL.PLLN = 10;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
-  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
-  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) Error_Handler();
+  	/** Initializes the RCC Oscillators according to the specified parameters in the RCC_OscInitTypeDef structure. */
+  	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  	RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  	RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+  	RCC_OscInitStruct.PLL.PLLM = 8;
+  	RCC_OscInitStruct.PLL.PLLN = 216;
+  	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  	RCC_OscInitStruct.PLL.PLLQ = 2;
+  	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) { Error_Handler(); }
 
-  /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  	/** Activate the Over-Drive mode */
+  	if (HAL_PWREx_EnableOverDrive() != HAL_OK) { Error_Handler(); }
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK) Error_Handler();
+  	/** Initializes the CPU, AHB and APB buses clocks */
+  	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK|RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
+  	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
+
+  	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7) != HAL_OK) { Error_Handler(); }
 
 }

@@ -1,6 +1,10 @@
 /* -------------------------------------------------------------------------------------------------------
  Board configuration
 
+ V1.2 boards have the stm32f722, with a secor based flash (rather than page based)
+ The configuration is hardcoded to use sector 1, 16kb, address 0x08004000 - 0x08007FFF
+ Requires the custom linker script to work, defining section ".config_flash" at this address
+
  Author: Christian Luethi
 --------------------------------------------------------------------------------------------------------- */
 
@@ -34,15 +38,10 @@
 
             configdata_t configdata;            
 
-            Config(uint32_t flashPage = 127);            
+            Config();            
             bool read(void);
             void write(void);
             void defaults(void);
-
-        private:
-            uint32_t flashPage;
-            uint32_t flashAddress;
-            //FLASH_PAGE_SIZE
 
     };
 
