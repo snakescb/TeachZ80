@@ -3,49 +3,46 @@
 /* Types and definitions -------------------------------------------------------------------------------- */  
 
 // These masks help for easy setup, write and release of pins later  
-#define PORTA_BUS_LINES_IN_USE      0xF9C7    //on port A pins 0,1,2,6,7,8,11,12,13,14,15 are used by the bus
-#define PORTA_DATA_LINES_IN_USE     0x00C7    //on port A pins 0,1,2,6,7 are used by the data bus
-#define PORTA_CONTROL_LINES_IN_USE  0xF900    //on port A pins 8,11,12,13,14,15 are used by the control bus
-#define PORTA_CONTROL_LINES_EX_RES  0xF100  //same, but excluding reset line
+#define PORTA_BUS_LINES_IN_USE      0x80C9      //on port A pins 0,3,6,7,15 are used by the bus
+#define PORTA_CONTROL_LINES_IN_USE  0x80C9      //on port A pins 0,3,6,7,15 are used by the control bus
+#define PORTA_CONTROL_LINES_EX_RES  0x80C8      //same, but excluding reset line
 
-#define PORTB_BUS_LINES_IN_USE      0xFFFF    //on port B all pins are used by the bus
-#define PORTB_ADDRESS_LINES_IN_USE  0xFFFF    //on port B all pins are used by the address bus
+#define PORTB_BUS_LINES_IN_USE      0xFFFF      //on port B all pins are used by the bus
+#define PORTB_ADDRESS_LINES_IN_USE  0xFFFF      //on port B all pins are used by the address bus
 
-#define PORTC_BUS_LINES_IN_USE      0xE000    //on port C pin 13,14,15 are used by the bus
-#define PORTC_DATA_LINES_IN_USE     0xE000    //on port C pin 13,14,15 are used by the data bus
-
-#define PORTH_BUS_LINES_IN_USE      0x0003    //on port H pin 0,1 are used by the bus
-#define PORTH_CONTROL_LINES_IN_USE  0x0003    //on port H pin 0,1 are used by the control bus
+#define PORTC_BUS_LINES_IN_USE      0x0FCF      //on port C pin 0,1,2,3,6,7,8,9,10,11 used by the bus
+#define PORTC_DATA_LINES_IN_USE     0x03CF      //on port C pin 0,1,2,3,6,7,8,9 used by the data bus
+#define PORTC_CONTROL_LINES_IN_USE  0x0C00      //on port C pin 10,11 used by the control bus
 
 //timings
-#define RESET_PULSE_LEN_ms  50
+#define RESET_PULSE_LEN_ms  300
 
 //makros for reading control lines
-#define WR_IS_HIGH       (GPIOA->IDR & GPIO_PIN_13)
-#define RD_IS_HIGH       (GPIOA->IDR & GPIO_PIN_12)
-#define WAIT_IS_HIGH     (GPIOH->IDR & GPIO_PIN_1)
-#define MREQ_IS_HIGH     (GPIOA->IDR & GPIO_PIN_14)
-#define IOREQ_IS_HIGH    (GPIOA->IDR & GPIO_PIN_15)
-#define BUSREQ_IS_HIGH   (GPIOH->IDR & GPIO_PIN_0)
-#define RESET_IS_HIGH    (GPIOA->IDR & GPIO_PIN_11)
+#define WR_IS_HIGH       (GPIOC->IDR & GPIO_PIN_10)
+#define RD_IS_HIGH       (GPIOA->IDR & GPIO_PIN_15)
+#define WAIT_IS_HIGH     (GPIOA->IDR & GPIO_PIN_7)
+#define MREQ_IS_HIGH     (GPIOC->IDR & GPIO_PIN_11)
+#define IOREQ_IS_HIGH    (GPIOA->IDR & GPIO_PIN_3)
+#define BUSREQ_IS_HIGH   (GPIOA->IDR & GPIO_PIN_6)
+#define RESET_IS_HIGH    (GPIOA->IDR & GPIO_PIN_0)
 
 //makros for setting control lines
-#define WR_SET           GPIOA->BSRR = GPIO_PIN_13
-#define RD_SET           GPIOA->BSRR = GPIO_PIN_12
-#define WAIT_SET         GPIOH->BSRR = GPIO_PIN_1
-#define MREQ_SET         GPIOA->BSRR = GPIO_PIN_14
-#define IOREQ_SET        GPIOA->BSRR = GPIO_PIN_15
-#define BUSREQ_SET       GPIOH->BSRR = GPIO_PIN_0
-#define RESET_SET        GPIOA->BSRR = GPIO_PIN_11
+#define WR_SET           GPIOC->BSRR = GPIO_PIN_10
+#define RD_SET           GPIOA->BSRR = GPIO_PIN_15
+#define WAIT_SET         GPIOA->BSRR = GPIO_PIN_7
+#define MREQ_SET         GPIOC->BSRR = GPIO_PIN_11
+#define IOREQ_SET        GPIOA->BSRR = GPIO_PIN_3
+#define BUSREQ_SET       GPIOA->BSRR = GPIO_PIN_6
+#define RESET_SET        GPIOA->BSRR = GPIO_PIN_0
 
 //makros for clearing (asserting) control lines
-#define WR_CLR           GPIOA->BSRR = GPIO_PIN_13 << 16
-#define RD_CLR           GPIOA->BSRR = GPIO_PIN_12 << 16
-#define WAIT_CLR         GPIOH->BSRR = GPIO_PIN_1 << 16
-#define MREQ_CLR         GPIOA->BSRR = GPIO_PIN_14 << 16
-#define IOREQ_CLR        GPIOA->BSRR = GPIO_PIN_15 << 16
-#define BUSREQ_CLR       GPIOH->BSRR = GPIO_PIN_0 << 16
-#define RESET_CLR        GPIOA->BSRR = GPIO_PIN_11 << 16
+#define WR_CLR           GPIOC->BSRR = GPIO_PIN_10 << 16
+#define RD_CLR           GPIOA->BSRR = GPIO_PIN_15 << 16
+#define WAIT_CLR         GPIOA->BSRR = GPIO_PIN_7 << 16
+#define MREQ_CLR         GPIOC->BSRR = GPIO_PIN_11 << 16
+#define IOREQ_CLR        GPIOA->BSRR = GPIO_PIN_3 << 16
+#define BUSREQ_CLR       GPIOA->BSRR = GPIO_PIN_6 << 16
+#define RESET_CLR        GPIOA->BSRR = GPIO_PIN_0 << 16
 
 /*--------------------------------------------------------------------------------------------------------
  Constructor
@@ -59,31 +56,26 @@ Z80Bus::Z80Bus(void) {
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
     __HAL_RCC_GPIOC_CLK_ENABLE();
-    __HAL_RCC_GPIOH_CLK_ENABLE();
 
     // 0x01 in OTYPER (1 bit per pin) sets the port pin to open drain mode
     GPIOA->OTYPER = setPortBits(GPIOA->OTYPER, PORTA_BUS_LINES_IN_USE, 0x01, false);
     GPIOB->OTYPER = setPortBits(GPIOB->OTYPER, PORTB_BUS_LINES_IN_USE, 0x01, false);
     GPIOC->OTYPER = setPortBits(GPIOC->OTYPER, PORTC_BUS_LINES_IN_USE, 0x01, false);
-    GPIOH->OTYPER = setPortBits(GPIOH->OTYPER, PORTH_BUS_LINES_IN_USE, 0x01, false);
 
     // 0x01 in MODER (2 bits per pin) sets the port pin to output mode
     GPIOA->MODER = setPortBits(GPIOA->MODER, PORTA_BUS_LINES_IN_USE, 0x01, true);
     GPIOB->MODER = setPortBits(GPIOB->MODER, PORTB_BUS_LINES_IN_USE, 0x01, true);
     GPIOC->MODER = setPortBits(GPIOC->MODER, PORTC_BUS_LINES_IN_USE, 0x01, true);
-    GPIOH->MODER = setPortBits(GPIOH->MODER, PORTH_BUS_LINES_IN_USE, 0x01, true);
 
     // 0x03 in OSPEEDR (2 bits per pin) sets the port pin to highspeed mode
     GPIOA->OSPEEDR = setPortBits(GPIOA->OSPEEDR, PORTA_BUS_LINES_IN_USE, 0x03, true);
     GPIOB->OSPEEDR = setPortBits(GPIOB->OSPEEDR, PORTB_BUS_LINES_IN_USE, 0x03, true);
     GPIOC->OSPEEDR = setPortBits(GPIOC->OSPEEDR, PORTC_BUS_LINES_IN_USE, 0x03, true);
-    GPIOH->OSPEEDR = setPortBits(GPIOH->OSPEEDR, PORTH_BUS_LINES_IN_USE, 0x03, true);
 
     // 0x00 in PUPDR (2 bits per pin) disables the port pin pull-up/downs
     GPIOA->PUPDR = setPortBits(GPIOA->PUPDR, PORTA_BUS_LINES_IN_USE, 0x00, true);
     GPIOB->PUPDR = setPortBits(GPIOB->PUPDR, PORTB_BUS_LINES_IN_USE, 0x00, true);
     GPIOC->PUPDR = setPortBits(GPIOC->PUPDR, PORTC_BUS_LINES_IN_USE, 0x00, true);
-    GPIOH->PUPDR = setPortBits(GPIOH->PUPDR, PORTH_BUS_LINES_IN_USE, 0x00, true);
 
     //release all lines
     release_bus();
@@ -97,12 +89,12 @@ void Z80Bus::controlPinsActiveDrive(bool enable) {
     if (enable) {
         // 0x00 in OTYPER (1 bit per pin) sets the port pin to push-pull
         GPIOA->OTYPER = setPortBits(GPIOA->OTYPER, PORTA_CONTROL_LINES_EX_RES, 0x00, false);
-        GPIOH->OTYPER = setPortBits(GPIOH->OTYPER, PORTH_BUS_LINES_IN_USE, 0x00, false);
+        GPIOC->OTYPER = setPortBits(GPIOC->OTYPER, PORTC_CONTROL_LINES_IN_USE, 0x00, false);
     }
     else {
         // 0x01 in OTYPER (1 bit per pin) sets the port pin to open-drain
         GPIOA->OTYPER = setPortBits(GPIOA->OTYPER, PORTA_CONTROL_LINES_EX_RES, 0x01, false);
-        GPIOH->OTYPER = setPortBits(GPIOH->OTYPER, PORTH_BUS_LINES_IN_USE, 0x01, false);
+        GPIOC->OTYPER = setPortBits(GPIOC->OTYPER, PORTC_CONTROL_LINES_IN_USE, 0x01, false);
     }
 }
 
@@ -140,25 +132,22 @@ void Z80Bus::write_controlBit(Z80Bus_controlBits bit, bool state) {
 ---------------------------------------------------------------------------------------------------------*/
 void Z80Bus::write_dataBus(uint8_t data) {
     if (busmode == passive) return;
-    uint16_t dataA = data & PORTA_DATA_LINES_IN_USE;
-    uint16_t dataC = (data << 10) & PORTC_DATA_LINES_IN_USE;
-
-    GPIOA->BSRR = data & PORTA_DATA_LINES_IN_USE;
-    GPIOA->BSRR = (~dataA & PORTA_DATA_LINES_IN_USE) << 16;
-    GPIOC->BSRR = (data << 10) & PORTC_DATA_LINES_IN_USE;
-    GPIOC->BSRR = (~(data << 10) & PORTC_DATA_LINES_IN_USE) << 16;
+    GPIOC->BSRR = (PORTC_DATA_LINES_IN_USE) << 16;
+    GPIOC->BSRR = (data & 0x0F) | ((data & 0xF0) << 2);
+    delayMicroseconds(1);   //required on the fast processor for bus to stabilize
 }
 
 void Z80Bus::write_addressBus(uint16_t address) {
     if (busmode == passive) return;
     GPIOB->ODR = address;
+    delayMicroseconds(1);   //required on the fast processor for bus to stabilize
 }
 
 /*--------------------------------------------------------------------------------------------------------
  Bus read functions
 ---------------------------------------------------------------------------------------------------------*/
 uint8_t Z80Bus::read_dataBus() {
-    return (GPIOA->IDR & PORTA_DATA_LINES_IN_USE) | ((GPIOC->IDR & PORTC_DATA_LINES_IN_USE) >> 10);
+    return ((GPIOC->IDR & 0x3C0) >> 2) | (GPIOC->IDR & 0x0F);
 }
 
 uint16_t Z80Bus::read_addressBus() {
@@ -193,7 +182,6 @@ void Z80Bus::release_bus() {
 }
 
 void Z80Bus::release_dataBus() {
-    GPIOA->BSRR = PORTA_DATA_LINES_IN_USE;
     GPIOC->BSRR = PORTC_DATA_LINES_IN_USE;
 }
 
@@ -203,7 +191,7 @@ void Z80Bus::release_addressBus() {
 
 void Z80Bus::release_controlBus() {
     GPIOA->BSRR = PORTA_CONTROL_LINES_EX_RES;
-    GPIOH->BSRR = PORTH_CONTROL_LINES_IN_USE;
+    GPIOC->BSRR = PORTC_CONTROL_LINES_IN_USE;
 }
 
 /*--------------------------------------------------------------------------------------------------------

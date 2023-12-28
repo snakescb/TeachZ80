@@ -31,8 +31,8 @@ const char* menuTitles[]    = { " Welcome ",
                                 " TeachZ80 - Main Menu - Flash - Memory Dump - Result",
                                 " TeachZ80 - Main Menu - Flash - Erase",
                                 " TeachZ80 - Main Menu - Flash - Erase",
-                                " TeachZ80 - Main Menu - Flash - Testprogram",
-                                " TeachZ80 - Main Menu - Flash - Testprogram",
+                                " TeachZ80 - Main Menu - Flash - Program",
+                                " TeachZ80 - Main Menu - Flash - Program",
                                 " TeachZ80 - Main Menu - Flash - Information"
                               };
 
@@ -144,7 +144,7 @@ void Console::drawMenu() {
             drawLine(" 1: Memory Dump");
             drawLine(" 2: Flash Information");
             drawLine(" 3: Erase Flash");
-            drawLine(" 4: Write Testprogram");
+            drawLine(" 4: Write Program");
             drawLine(menuDivider);
             drawLine(" 9: Main Menu");
             break;
@@ -242,7 +242,7 @@ void Console::drawMenu() {
 
         case flashselectestprogram: {
             drawLine("");
-            drawLine(" Select Test Program to write to FLASH");
+            drawLine(" Select Program to write to FLASH");
             drawLine(" Warning: Flash will be erased and rewritten!");
             drawLine("");            
             drawLine(" Available Programs");
@@ -260,8 +260,8 @@ void Console::drawMenu() {
 
         case flashtestprogramresult: {
             drawLine("");
-            if (lastFunctionResult) drawLine(" Testprogramm written and verified SUCCESSFUL");
-            else drawLine(" Testprogram write ERROR: Verification failed");
+            if (lastFunctionResult) drawLine(" Programm written and verified SUCCESSFUL");
+            else drawLine(" Program write ERROR: Verification failed");
             drawLine("");
             drawLine(" Commands");
             drawLine(menuDivider);
