@@ -3,36 +3,57 @@
 /* Types and definitions -------------------------------------------------------------------------------- */  
 
 
+
 extern Z80IO z80io;
 /*--------------------------------------------------------------------------------------------------------
-EXTI interrupt handler to handle IORequests
-To be as fast as possible, change interupt priority through HAL
-Also, avoid the HAL / Arduino default handlers to be called, by redefining EXTI9_5_IRQHandler
-
-On V1.0 / V1.1 boards with the stm32l433, reading iorequests works reliably until 6MHz only
-
-Requires to add __weak to void EXTI9_5_IRQHandler(void) in
-(user folder)\.platformio\packages\framework-arduinoststm32\libraries\SrcWrapper\src\stm32\interrupt.cpp
+Setup the IOREQ_60 interrupt and changes it ho highest priority.
+Relocates the interrupt table from Flash to RAM
 ---------------------------------------------------------------------------------------------------------*/
 void z80io_interrupt_config(void) {
-    //setup iroeq interrupt
+    
+    //Disable interrupts
+    __disable_irq();
+
+    //setup and enable iroeq60 interrupt
+    GPIO_InitTypeDef gpioInit;
+    gpioInit.Pin = GPIO_PIN_8;
+    gpioInit.Mode = GPIO_MODE_IT_FALLING;
+    gpioInit.Pull = GPIO_NOPULL;
+    gpioInit.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+
+    HAL_GPIO_Init(GPIOA, &gpioInit);
+    HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+    //Adjust IRQ priorities
     HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
     HAL_NVIC_SetPriority(SysTick_IRQn, 1, 0);
-    attachInterrupt(PA8, 0, FALLING);
+
+    //Copy interrupt table from FLASH to RAM (128*4 bytes fit in the 512 area left open in the linker script)
+    uint32_t* psrc = (uint32_t*) FLASH_BASE; 
+    uint32_t* pdst = (uint32_t*) SRAM_BASE;
+    for (int i=0; i<128; i++) pdst[i] = psrc[i];
+
+    //repoint vector table to new area in RAM
+    SCB->VTOR = SRAM_BASE;
+
+    //Enable interrupts
+    __enable_irq();
 }
 
+/*--------------------------------------------------------------------------------------------------------
+EXTI interrupt handler
+To be as fast as possible, the ISR handler will be executed from RAM. Also, the init function has moved the 
+interrupt table from Flash to RAM. Last but not least, it redefines the default HAL/Arduino interrupt handler.
+This requires to add __weak to void EXTI1_IRQHandler(void) in
+(user folder)\.platformio\packages\framework-arduinoststm32\libraries\SrcWrapper\src\stm32\interrupt.cpp
+---------------------------------------------------------------------------------------------------------*/
 extern "C"  {   
-    void EXTI9_5_IRQHandler(void){
-        uint16_t gpioB = GPIOB->IDR;
-        uint16_t gpioA = GPIOA->IDR;
-        uint16_t gpioC = GPIOC->IDR;
-
-        uint8_t data = (gpioA & 0x00C7) | ((gpioC & 0xE000) >> 10);           
-        z80io.ioreqHandler(gpioB & 0xFF, data);
-
+    __attribute__ ((long_call, section (".RamFunc"))) void EXTI9_5_IRQHandler(void){
+        z80io.irqPortA = GPIOA->IDR;
+        z80io.irqPortB = GPIOB->IDR;
+        z80io.irqPortC = GPIOC->IDR; 
         //reset the interrupt flag
         EXTI->PR1 = EXTI_PR1_PIF8; 
-
     }
 }
 
@@ -40,15 +61,21 @@ extern "C"  {
  Constructor
 ---------------------------------------------------------------------------------------------------------*/
 Z80IO::Z80IO(Z80Bus bus) : z80bus(bus) {
-    counter = 0;
 }
 
 /*--------------------------------------------------------------------------------------------------------
- Handler Function
+ process function
 ---------------------------------------------------------------------------------------------------------*/
-void Z80IO::ioreqHandler(uint16_t address, uint8_t data) {
-    counter++;
-    //Serial.printf("Counter: %u - Address: %u - Data: %u\r\n", counter, address, data);
+void Z80IO::process(void) {
+    if (irqPortB != 0) {
+
+        //Decode ports received by the interrupt handler
+        uint8_t address =  irqPortB;
+        uint8_t data    =  (irqPortA & 0x00C7) | ((irqPortC & 0xE000) >> 10);     
+
+        Serial.printf("Address: %04X - Data: %02X\r\n", address, data);
+        irqPortB = 0;
+    }
 }
 
 /*--------------------------------------------------------------------------------------------------------

@@ -79,61 +79,7 @@ void loop() {
 	flashloader.process();
    	statusLed.process();
    	button.process();
-
-	/*
-	static uint32_t testtime = 0;
-	static bool ok = false;
-	if (!ok) {
-		if (millis() - testtime > 1000) {
-			testtime = millis();
-
-			Z80SDCard::sdResult result = z80sdcard.accessCard(true);
-			if (result == z80sdcard.ok) Serial.println("Access: SD Card OK");
-			if (result == z80sdcard.nocard) Serial.println("Access: No SD Card in slot");
-			if (result == z80sdcard.not_idle) Serial.println("Access: SD Card not idle");
-			if (result == z80sdcard.invalid_status) Serial.println("Access: SD Card onvalid status");
-			if (result == z80sdcard.invalid_status) Serial.println("Access: SD Card is not ready");
-			if (result == z80sdcard.invalid_capacity) Serial.println("Access: SD Card is not SDHC or SDXC");
-
-			result = z80sdcard.readBlock(0, z80sdcard.sdDataBuffer);
-			if (result == z80sdcard.ok) {
-
-				uint16_t numlines = 512 >> 4;
-				uint16_t address = 0;
-				uint8_t databuffer[16];
-				for (unsigned int i=0; i<numlines; i++) {
-					for (int j=0; j<16; j++) databuffer[j] = z80sdcard.sdDataBuffer[address + j];
-					Serial.printf(" %04X: ", address);
-					for (int j=0; j<8; j++) Serial.printf(" %02X", databuffer[j]);
-					Serial.print(" ");
-					for (int j=8; j<16; j++) Serial.printf(" %02X", databuffer[j]);
-					Serial.print("  ");
-
-					for (int j=0; j<16; j++) {
-						if ((databuffer[j] >= 21) && (databuffer[j] < 127)) Serial.write(databuffer[j]);
-						else Serial.write('.');
-					}
-					Serial.println();
-					address += 0x10;
-				}
-
-				uint8_t testbuffer[512];
-				for (int i=0; i<512; i++) testbuffer[i] = i;
-				result = z80sdcard.writeBlock(0, testbuffer);
-
-				if (result == z80sdcard.ok) Serial.println("Write: OK!");
-				if (result == z80sdcard.not_idle) Serial.println("Write: ERROR - Card Not ready");
-				if (result == z80sdcard.write_timeout_1) Serial.println("Write: ERROR - Timeout 1");
-				if (result == z80sdcard.write_timeout_2) Serial.println("Write: ERROR - Timeout 2");
-
-				ok=true;
-			}
-			else Serial.println("Read: ERROR");
-			z80sdcard.accessCard(false);
-
-		}
-	}
-	*/
+	z80io.process();
 
 	//Reception of serial characters
 	int rx = Serial.read();

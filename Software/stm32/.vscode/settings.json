@@ -5,6 +5,7 @@
         "string": "cpp",
         "string_view": "cpp",
         "*.tcc": "cpp",
-        "functional": "cpp"
+        "functional": "cpp",
+        "stm32l4xx.h": "c"
     }
 }

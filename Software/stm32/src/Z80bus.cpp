@@ -18,7 +18,7 @@
 #define PORTH_CONTROL_LINES_IN_USE  0x0003    //on port H pin 0,1 are used by the control bus
 
 //timings
-#define RESET_PULSE_LEN_ms  50
+#define RESET_PULSE_LEN_ms  100
 
 //makros for reading control lines
 #define WR_IS_HIGH       (GPIOA->IDR & GPIO_PIN_13)
@@ -85,7 +85,8 @@ Z80Bus::Z80Bus(void) {
     GPIOC->PUPDR = setPortBits(GPIOC->PUPDR, PORTC_BUS_LINES_IN_USE, 0x00, true);
     GPIOH->PUPDR = setPortBits(GPIOH->PUPDR, PORTH_BUS_LINES_IN_USE, 0x00, true);
 
-    //release all lines
+    //set inital states
+    RESET_SET;
     release_bus();
 }
 

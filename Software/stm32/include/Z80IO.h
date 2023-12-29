@@ -22,15 +22,16 @@
               
         public:            
             Z80IO(Z80Bus bus);    
-            void ioreqHandler(uint16_t address, uint8_t data);
+            void process();
             void requestBus(bool request);
             void write(uint8_t ioport, uint8_t data);
             uint8_t read(uint8_t ioport);
+            uint16_t irqPortA;
+            uint16_t irqPortB;
+            uint16_t irqPortC; 
 
         private:
             Z80Bus z80bus; 
-
-            uint32_t counter;
     
     };
 

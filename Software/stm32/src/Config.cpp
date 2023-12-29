@@ -1,7 +1,7 @@
 #include <Config.h>
 
 /* Types and definitions ------------------------------------------------------------------------------- */  
-#define CONFIG_CHECKSUM_START  0xAA
+#define CONFIG_CHECKSUM_START  0xAB
 
 /* -----------------------------------------------------------------------
  Constructor
@@ -17,8 +17,8 @@ Config::Config(uint32_t flashPage) {
 void Config::defaults(void) {
 	
 	configdata.clock.z80Clock = 10000000;
-	configdata.clock.sioaClock = 1843200;
-	configdata.clock.siobClock = 1843200;
+	configdata.clock.sioaClock = 7372800;
+	configdata.clock.siobClock = 7372800;
 
 	configdata.flash.dumpStart = 0x0000;
 	configdata.flash.dumpEnd = 0x03FF;
