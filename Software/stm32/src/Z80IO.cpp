@@ -67,12 +67,11 @@ Z80IO::Z80IO(Z80Bus bus) : z80bus(bus) {
 void Z80IO::process(void) {
     if (irqPortB != 0) {
 
-        //Decode ports received by the interrupt handler
+        //Decode port and data received by the interrupt handler
         uint8_t address =  irqPortB;
-        uint8_t data    = ((irqPortC & 0x03C0) >> 2) | (irqPortC & 0x0F);        
-
+        uint8_t data    = ((irqPortC & 0x03C0) >> 2) | (irqPortC & 0x0F); 
+        irqPortB = 0;       
         //Serial.printf("Address: %04X - Data: %02X\r\n", address, data);
-        irqPortB = 0;
     }
 }
 
