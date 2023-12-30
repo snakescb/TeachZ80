@@ -1,9 +1,10 @@
 #include <Z80Flash.h>
-#include <Z80Programs.h>
+#include <z80Programs.h>
 
 /* Types and definitions -------------------------------------------------------------------------------- */  
 //flash timings
 #define BYTE_WRITE_WAIT_TIME_us      25
+#define PAGE_ERASE_WAIT_TIME_ms      25
 #define FLASH_ERASE_WAIT_TIME_ms    100
 #define FLASH_IDMODE_ACCESS_TIME_us  10
 
@@ -66,7 +67,7 @@ void Z80Flash::writeByte(uint16_t address, uint8_t data) {
 }
 
 /*--------------------------------------------------------------------------------------------------------
- flash erase - works in active mode only
+ flash erase - erases the whole chip - works in active mode only
 ---------------------------------------------------------------------------------------------------------*/
 void Z80Flash::eraseFlash() {
     if (flashmode != active) return;
@@ -81,6 +82,33 @@ void Z80Flash::eraseFlash() {
     singleByteWrite(0x5555, 0xAA);
     singleByteWrite(0x2AAA, 0x55);
     singleByteWrite(0x5555, 0x10);   
+
+    //disable chip and release bus
+    z80bus.write_controlBit(z80bus.mreq, true);
+    z80bus.release_dataBus();
+
+    delay(FLASH_ERASE_WAIT_TIME_ms);
+}
+
+/*--------------------------------------------------------------------------------------------------------
+ bank erase - erases the currently selected 64k bank - works in active mode only
+---------------------------------------------------------------------------------------------------------*/
+void Z80Flash::eraseBank() {
+    if (flashmode != active) return;
+
+    //enable chip
+    z80bus.write_controlBit(z80bus.mreq, false);
+
+    for (int i=0; i<16; i++) {
+        //erase, 6-byte erase command for SST39SF0x0
+        singleByteWrite(0x5555, 0xAA);
+        singleByteWrite(0x2AAA, 0x55);
+        singleByteWrite(0x5555, 0x80);
+        singleByteWrite(0x5555, 0xAA);
+        singleByteWrite(0x2AAA, 0x55);
+        singleByteWrite(i << 12, 0x30);
+        delay(PAGE_ERASE_WAIT_TIME_ms);
+    }   
 
     //disable chip and release bus
     z80bus.write_controlBit(z80bus.mreq, true);
@@ -140,14 +168,14 @@ uint32_t Z80Flash::bytesProgrammed() {
  Writes and verifies a test program to the FLASH
  works in active mode only
 ---------------------------------------------------------------------------------------------------------*/
-bool Z80Flash::writeTestProgram(uint8_t programNumber) {
+bool Z80Flash::writeProgram(uint8_t programNumber) {
     setMode(true);
 
-    //erase, write, verify
-    eraseFlash();    
-    for (uint32_t i=0; i<testPrograms[programNumber].length; i++) writeByte(i, testPrograms[programNumber].data[i]);
+    //erase current bank, write, verify
+    eraseBank();    
+    for (uint32_t i=0; i<z80FlashPrograms[programNumber].length; i++) writeByte(i, z80FlashPrograms[programNumber].data[i]);
     bool programOK = true;
-    for (uint32_t i=0; i<testPrograms[programNumber].length; i++) if (readByte(i) != testPrograms[programNumber].data[i]) programOK = false;
+    for (uint32_t i=0; i<z80FlashPrograms[programNumber].length; i++) if (readByte(i) != z80FlashPrograms[programNumber].data[i]) programOK = false;
 
     setMode(false);                 
     return programOK;

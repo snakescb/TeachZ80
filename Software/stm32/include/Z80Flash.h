@@ -38,8 +38,9 @@
             uint8_t readByte(uint16_t address); 
             void writeByte(uint16_t address, uint8_t data);
             void eraseFlash();   
+            void eraseBank();   
             uint32_t bytesProgrammed(void);
-            bool writeTestProgram(uint8_t programNumber);
+            bool writeProgram(uint8_t programNumber);
             void readChipIndentification();            
 
         private:            

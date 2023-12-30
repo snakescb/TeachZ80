@@ -1,5 +1,5 @@
 #include <FlashLoader.h>
-#include <Z80Programs.h>
+#include <z80Programs.h>
 
 /* Types and definitions -------------------------------------------------------------------------------- */  
 // Timeout for automatic aborting flash mode

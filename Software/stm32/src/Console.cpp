@@ -8,7 +8,7 @@
 #include <Z80Programs.h>
 
 /* Types and definitions ------------------------------------------------------------------------------- */  
-#define SCREEN_HEIGHT      22
+#define SCREEN_HEIGHT      21
 #define KEY_ESC            27
 #define KEY_LINE_FEED      10
 #define KEY_CARRIAGE_FEED  13
@@ -33,7 +33,13 @@ const char* menuTitles[]    = { " Welcome ",
                                 " TeachZ80 - Main Menu - Flash - Erase",
                                 " TeachZ80 - Main Menu - Flash - Program",
                                 " TeachZ80 - Main Menu - Flash - Program",
-                                " TeachZ80 - Main Menu - Flash - Information"
+                                " TeachZ80 - Main Menu - Flash - Information",
+                                " TeachZ80 - Main Menu - SD-Card",
+                                " TeachZ80 - Main Menu - SD-Card - Card Information",
+                                " TeachZ80 - Main Menu - SD-Card - Format",
+                                " TeachZ80 - Main Menu - SD-Card - Format",
+                                " TeachZ80 - Main Menu - SD-Card - Program",
+                                " TeachZ80 - Main Menu - SD-Card - Program",
                               };
 
 /* extern references ----------------------------------------------------------------------------------- */  
@@ -42,6 +48,7 @@ extern FlashLoader flashloader;
 extern Config config;         
 extern Z80Bus z80bus;  
 extern Z80Flash z80flash;
+extern Z80SDCard z80sdcard;
 
 /*--------------------------------------------------------------------------------------------------------
  Constructor
@@ -88,6 +95,7 @@ void Console::drawMenu() {
             drawLine(menuDivider);
             drawLine(" 1: Clock Menu");
             drawLine(" 2: Flash Menu");
+            drawLine(" 3: SD-Card Menu");
             break;
         }
         case clocks: {
@@ -144,7 +152,7 @@ void Console::drawMenu() {
             drawLine(" 1: Memory Dump");
             drawLine(" 2: Flash Information");
             drawLine(" 3: Erase Flash");
-            drawLine(" 4: Write Program");
+            drawLine(" 4: Store Program");
             drawLine(menuDivider);
             drawLine(" 9: Main Menu");
             break;
@@ -220,11 +228,12 @@ void Console::drawMenu() {
 
         case flasherase: {
             drawLine("");
-            drawLine(" PLEASE CONFIRM FLASH ERASE");
+            drawLine(" PLEASE CONFIRM FLASH CHIP OR BANK ERASE");
             drawLine("");
             drawLine(" Commands");
             drawLine(menuDivider);
-            drawLine(" Enter: Confirm");
+            drawLine(" Enter: Confirm - Erase Full Chip");
+            drawLine(" +    : Confirm - Erase Current Bank");
             drawLine(" ESC  : Cancel");
             break;
         }
@@ -240,17 +249,17 @@ void Console::drawMenu() {
             break;
         }
 
-        case flashselectestprogram: {
+        case flashselectprogram: {
             drawLine("");
             drawLine(" Select Program to write to FLASH");
-            drawLine(" Warning: Flash will be erased and rewritten!");
+            drawLine(" Warning: Flash Bank will be erased and rewritten!");
             drawLine("");            
             drawLine(" Available Programs");
             drawLine(" -------------------------------------------------------------------------");
-            for (int i=0; i<sizeof(testPrograms) / sizeof(z80Program_t); i++) {
+            for (int i=0; i<sizeof(z80FlashPrograms) / sizeof(z80Program_t); i++) {
                 Serial.printf(" %u: ", i+1);
-                Serial.print(testPrograms[i].name);
-                Serial.printf(" (%u Bytes)", testPrograms[i].length);
+                Serial.print(z80FlashPrograms[i].name);
+                Serial.printf(" (%u Bytes)", z80FlashPrograms[i].length);
                 drawLine("");
             }
             drawLine(" -------------------------------------------------------------------------");
@@ -258,7 +267,7 @@ void Console::drawMenu() {
             break;
         }
 
-        case flashtestprogramresult: {
+        case flashprogramresult: {
             drawLine("");
             if (lastFunctionResult) drawLine(" Programm written and verified SUCCESSFUL");
             else drawLine(" Program write ERROR: Verification failed");
@@ -305,6 +314,128 @@ void Console::drawMenu() {
             break;
         }
 
+        case sdcard: {
+            drawLine("");
+            drawLine(" Commands");
+            drawLine(menuDivider);
+            drawLine(" 1: Card Information");
+            drawLine(" 2: Format Card");
+            drawLine(" 3: Save Program");
+            drawLine(menuDivider);
+            drawLine(" 9: Main Menu");
+            break;
+        }
+
+        case sdcardcheck: {
+            drawLine("");
+            drawLine(" SD-Card Master Boot Record");
+            drawLine(menuDivider);      
+            if (mbrResult.accessresult != z80sdcard.ok) {
+                switch (mbrResult.accessresult) {        
+                    case z80sdcard.nocard:  drawLine(" ERROR: No card detected in SD slot"); break;                    
+                    case z80sdcard.not_idle:  drawLine(" ERROR: Invalid answer: GO_IDLE_STATE command failed"); break;                    
+                    case z80sdcard.invalid_status: drawLine(" ERROR: Invalid answer: SEND_IF_CONDITION command failed"); break;                    
+                    case z80sdcard.not_ready: drawLine(" ERROR: Card not ready. APP_CMD_41 command timed out"); break; 
+                    case z80sdcard.invalid_capacity: drawLine(" ERROR: Unsupported SD card. Use SDHC or SDXC Card"); break; 
+                    default: drawLineFormat(" ERROR: Unknown Error while accessing the card: Code 0x%02X", mbrResult.accessresult); break;
+                }
+            }
+            else {
+                if (mbrResult.readresult != z80sdcard.ok) {
+                    switch (mbrResult.accessresult) {     
+                        case z80sdcard.not_ready: drawLine(" ERROR: Card accessible, but not ready to read. CMD17 command failed"); break; 
+                        case z80sdcard.read_timeout: drawLine(" ERROR: Timeout occured while reading card. No data token received"); break; 
+                    }
+                }
+                else {
+                    drawLine(" MBR read successful from card.");
+                    if (mbrResult.partitions == 0) drawLine(" ERROR: MBR is invalid, no partitions found. Please format the card.");
+                    else {
+                        drawLine("");
+                        drawLine(" SD-Card partition table");
+                        drawLine(menuDivider);
+                        for (int i=0; i<4; i++) {                            
+                            Serial.printf(" Partition %u: ", i+1);
+                            if (mbrResult.partitiontable[i].size > 0) {
+                                uint32_t sizemb = mbrResult.partitiontable[i].size*512 >> 20;
+                                Serial.printf(" Start %8Xh", mbrResult.partitiontable[i].block);
+                                Serial.printf(" - Size %8Xh (%4uMB)", mbrResult.partitiontable[i].size, sizemb);
+                                Serial.printf(" - Type %2Xh", mbrResult.partitiontable[i].type);
+                                Serial.printf(" - Status %2Xh", mbrResult.partitiontable[i].status);
+                            }
+                            else Serial.print(" INVALID");
+                            drawLine("");
+                        }
+                    }
+                }
+            }            
+            drawLine("");
+            drawLine(" Commands");
+            drawLine(menuDivider);
+            drawLine(" 9: Back");
+            break;
+        }
+
+        case sdcardformatconfirm: {
+            drawLine("");
+            drawLine(" PLEASE CONFIRM SD-CARD FORMATTING!");
+            drawLine(" THIS WILL ERASE DATA YOU CURRENTLY HAVE STORED ON YOUR CARD");
+            drawLine("");
+            drawLine(" Commands");
+            drawLine(menuDivider);
+            drawLine(" Enter: Confirm");
+            drawLine(" ESC  : Cancel");
+            break;
+        }
+
+        case sdcardsdresult: {
+            drawLine("");
+            if (sdresult == z80sdcard.ok) {
+                drawLine(" SD-Card formatted successfully");
+            }
+            else {
+                drawLine(" ERROR while writing partition table. Error code");
+                drawLineFormat(" Error Code 0x%02X", sdresult);
+            }
+            drawLine("");
+            drawLine(" Commands");
+            drawLine(menuDivider);
+            drawLine(" 9: Back");
+            break;
+        }
+
+        case sdcardselectprogram: {
+            drawLine("");
+            drawLine(" Select Program to write to the SD-Card");
+            drawLine(" Warning: Data in Partition 1 will be overwritten!");
+            drawLine("");            
+            drawLine(" Available Programs");
+            drawLine(" -------------------------------------------------------------------------");
+            for (int i=0; i<sizeof(z80SDPrograms) / sizeof(z80Program_t); i++) {
+                Serial.printf(" %u: ", i+1);
+                Serial.print(z80SDPrograms[i].name);
+                Serial.printf(" (%u Bytes)", z80SDPrograms[i].length);
+                drawLine("");
+            }
+            drawLine(" -------------------------------------------------------------------------");
+            drawLine(" 9: Back");
+            break;
+        }
+
+        case sdcardprogramresult: {
+            drawLine("");
+            if (sdresult == z80sdcard.ok) drawLine(" Programm written SUCCESSFUL");
+            else {
+                drawLine(" ERROR while writing program. Error code");
+                drawLineFormat(" Error Code 0x%02X", sdresult);
+            }
+            drawLine("");
+            drawLine(" Commands");
+            drawLine(menuDivider);
+            drawLine(" 9: Back");
+            break;
+        }
+
         default: {
             break;
         }
@@ -328,6 +459,7 @@ void Console::serialUpdate(uint8_t c) {
         case main: {
             if (c == '1') menustate = clocks;
             else if (c == '2') menustate = flash;
+            else if (c == '3') menustate = sdcard;
             else {
                 //Serial.println(c);
                 refreshScreen = false;
@@ -392,7 +524,7 @@ void Console::serialUpdate(uint8_t c) {
                 menustate = flashinfo;
             }
             else if (c == '3') menustate = flasherase;
-            else if (c == '4') menustate = flashselectestprogram;
+            else if (c == '4') menustate = flashselectprogram;
             else if (c == '9') menustate = main;
             else refreshScreen = false;
             break;
@@ -438,6 +570,13 @@ void Console::serialUpdate(uint8_t c) {
                 z80flash.setMode(false);
                 menustate = flasheraseresult;
             }
+            else if (c == '+') {
+                z80flash.setMode(true);
+                z80flash.eraseBank();
+                lastFunctionResult = z80flash.bytesProgrammed();
+                z80flash.setMode(false);
+                menustate = flasheraseresult;
+            }
             else refreshScreen = false;
             break;
         }
@@ -448,14 +587,14 @@ void Console::serialUpdate(uint8_t c) {
             break;
         }
 
-        case flashselectestprogram: {
+        case flashselectprogram: {
             if (c == '9') menustate = flash;
             else {
                 if ((c >= '1') && (c <= '8')) {
                     uint8_t programNumber = c - '1';
-                    if (programNumber <= (sizeof(testPrograms) / sizeof(z80Program_t)) - 1) { 
-                        lastFunctionResult = z80flash.writeTestProgram(programNumber); 
-                        menustate = flashtestprogramresult;
+                    if (programNumber <= (sizeof(z80FlashPrograms) / sizeof(z80Program_t)) - 1) { 
+                        lastFunctionResult = z80flash.writeProgram(programNumber); 
+                        menustate = flashprogramresult;
                     }
                     else refreshScreen = false;
                 }
@@ -464,7 +603,7 @@ void Console::serialUpdate(uint8_t c) {
             break;
         }
 
-        case flashtestprogramresult: {
+        case flashprogramresult: {
             if (c == '9') menustate = flash;
             else refreshScreen = false;
             break;
@@ -474,6 +613,68 @@ void Console::serialUpdate(uint8_t c) {
             if (c == '9') menustate = flash;
             else refreshScreen = false;
             break; 
+        }
+
+        case sdcard: {
+            if (c == '1') { 
+                z80bus.write_controlBit(z80bus.reset, true);
+                mbrResult = z80sdcard.readMBR(); 
+                z80bus.write_controlBit(z80bus.reset, false);
+                menustate = sdcardcheck;
+            }
+            else if (c == '2') menustate = sdcardformatconfirm;
+            else if (c == '3') menustate = sdcardselectprogram;
+            else if (c == '9') menustate = main;
+            else refreshScreen = false;
+            break;
+        }
+
+        case sdcardcheck: {
+            if (c == '9') menustate = sdcard;
+            else refreshScreen = false;
+            break;
+        }
+
+        case sdcardformatconfirm: {
+            if (c == KEY_ESC) menustate = sdcard;
+            else if ((c == KEY_LINE_FEED) || (c == KEY_CARRIAGE_FEED)) {
+                z80bus.write_controlBit(z80bus.reset, true);
+                sdresult = z80sdcard.formatCard(); 
+                z80bus.write_controlBit(z80bus.reset, false);
+                menustate = sdcardsdresult;
+            }
+            else refreshScreen = false;
+            break;
+        }
+
+        case sdcardsdresult: {
+            if (c == '9') menustate = sdcard;
+            else refreshScreen = false;
+            break;
+        }
+
+        case sdcardselectprogram: {
+            if (c == '9') menustate = sdcard;
+            else {
+                if ((c >= '1') && (c <= '8')) {
+                    uint8_t programNumber = c - '1';
+                    if (programNumber <= (sizeof(z80SDPrograms) / sizeof(z80Program_t)) - 1) { 
+                        z80bus.write_controlBit(z80bus.reset, true);
+                        sdresult = z80sdcard.writeProgram(0, programNumber);
+                        z80bus.write_controlBit(z80bus.reset, false);
+                        menustate = sdcardprogramresult;
+                    }
+                    else refreshScreen = false;
+                }
+                else refreshScreen = false;
+            }
+            break;
+        }
+
+        case sdcardprogramresult: {
+            if (c == '9') menustate = sdcard;
+            else refreshScreen = false;
+            break;
         }
 
     }

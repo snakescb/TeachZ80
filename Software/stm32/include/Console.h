@@ -7,7 +7,8 @@
 #ifndef CONSOLE_H
 #define CONSOLE_H
 
-    #include <Arduino.h>      
+    #include <Arduino.h>    
+    #include <Z80SDCard.h>  
 
     class Console {
             
@@ -22,7 +23,9 @@
             enum menuState: uint8_t { 
                 welcome, main, 
                 clocks, clockz80, clocksioa, clocksiob, 
-                flash, flashdump, flashdumpmin, flashdumpmax, flashdumpresult, flasherase, flasheraseresult, flashselectestprogram, flashtestprogramresult, flashinfo };
+                flash, flashdump, flashdumpmin, flashdumpmax, flashdumpresult, flasherase, flasheraseresult, flashselectprogram, flashprogramresult, flashinfo,
+                sdcard, sdcardcheck, sdcardformatconfirm, sdcardsdresult, sdcardselectprogram, sdcardprogramresult    
+             };
             menuState menustate, lastmenustate;
 
             uint32_t linecount;     
@@ -31,7 +34,10 @@
             uint32_t currentInput;
             bool inputModeHex;
             uint32_t debug;
-            uint32_t lastFunctionResult;
+            uint32_t lastFunctionResult;    
+
+            Z80SDCard::mbrResult mbrResult;   
+            Z80SDCard::sdResult sdresult;
 
             void drawMenu();
             void fillScreen();
