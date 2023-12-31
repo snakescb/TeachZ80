@@ -271,7 +271,7 @@ sd_initialize:
 ; the top of the stack into the buffer given by address in DE.
 ;
 ; - clear SSEL line
-; - send command
+; - send command 17
 ; - read for CMD ACK
 ; - wait for 'data token'
 ; - read data block
@@ -365,6 +365,136 @@ sd_readBlock:
 .sd_read_exit:
 	call	.sd_ssel_high				; set ssel line again
 	pop 	de							; cleanup stack, restire de
+	ld		a,b							; copy return code
+	ret	
+
+;############################################################################
+; Write one block of data in RAM to the SD card
+;
+; Write one block of data pointed by DE to the SD card block given by the 
+; 32-bit (little endian) number at the top of the stack 
+;
+; - clear SSEL line
+; - send command 24
+; - read for CMD ACK
+; -	send data 'data token'
+; - write data block
+; - wait for data response toke
+; - check data response token
+; - set SSEL line
+; - clear SSEL line
+; - wait while card is busy
+; - set SSEL line
+;
+; Returns the result of the operation in A:
+; 	- A = 0 : Block sucessfully written
+; 	- A = 1 : Card not ready
+; 	- A = 2 : Timout happened while waiting for data response token
+;	- A = 3	: Invalid data token received
+;	- A = 4	: Timout happened while card is busy
+;
+; Clobbers AF, BC, IX, IY
+;############################################################################
+sd_writeBlock:
+	; Stack orgqanization at this point:  sp +5 = block number 31-24
+										; sp +4 = block number 23-16
+										; sp +3 = block number 15-08
+										; sp +2 = block number 07-00
+										; sp +1 = return @ High
+										; sp +0 = return @ Low
+
+	; **** Generate CMD24 command buffer**************************************
+	ld		ix,.sd_scratch				; ix = buffer to sd command buffer
+	ld		iy,0	
+	add		iy,sp						; iy = address if current stackpointer
+
+	ld		(ix+0),24|0x40				; CMD 24 command byte
+	ld		a,(iy+5)					; CMD 24 block number 31-24
+	ld		(ix+1),a					
+	ld		a,(iy+4)					; CMD 24 block number 23-16		
+	ld		(ix+2),a
+	ld		a,(iy+3)					; CMD 24 block number 15-08
+	ld		(ix+3),a
+	ld		a,(iy+2)					; CMD 24 block number 07-00
+	ld		(ix+4),a
+	ld		(ix+5),0x00|0x01			; the CRC byte
+
+	; **** Send command to the card ******************************************
+	push	de							; backup de
+	call	.sd_ssel_low				; SSEL line low
+	ld		b,1							; CMD 24 expects 1 byte reponse
+	ld		e,0							; SSEL line controlled manually		
+	call	.sd_command					; send command to card
+	ld		a,(.sd_scratch)				; check if card returned 0x00 -> ok
+	or		a
+	jr		z,.sd_write_send_token		; if response = 0, then ok
+	ld		b,1							; else, return error 1
+	jr		.sd_write_exit	
+
+	; **** Send data token ***************************************************
+.sd_write_send_token:
+	ld		c, 0xff						; set c=0xff, send FF
+	call	spi_write8					
+	ld		c, 0xfe						; set c=0xfe, send FE
+	call	spi_write8					
+
+	; **** Send the data *****************************************************
+.sd_send_data:
+	pop 	ix							; restore de from stack and store it in ix
+	push	ix							; push it to the stack again, it will be removed when functions exits
+	ld		de,512						; use de as a counter, we read 512 bytes from the card
+.sd_send_data_loop:	
+	ld		c,(ix+0)					; load next byte to c
+	call	spi_write8					; send it
+	inc 	ix							; increment source pointer
+	dec		de							; decrement counter
+	ld		a,d	
+	or		e
+	jr		nz,.sd_send_data_loop		; if counter is not zero, send next byte
+
+	; **** Wait for data response token, up to 250ms *************************
+	ld		de, 0xF000					; use de as a counter
+.sd_send_wait_token:
+	call	spi_read8					; read one byte
+	cp		0xff						; compare with 0xff
+	jr		nz,.sd_send_check_token		; if it is not 0xff, we are ok and can continue
+	dec		de							; decrement counter
+	ld		a,d
+	or		e
+	jr		nz,.sd_send_wait_token		; if counter is not zero, try again
+	ld		a, 2						; timeout occured, return error 2
+	jr		.sd_write_exit	
+
+	; **** check data response ***********************************************
+.sd_send_check_token:					; Make sure the response is 0bxxx00101 else is an error
+	and		0x1f
+	cp		0x05
+	jr		z,.sd_send_wait_busy		; if response is ok, continue
+	ld		a, 3						; else, return error 3
+	jr		.sd_write_exit	
+
+; **** check data response ***********************************************
+.sd_send_wait_busy:
+	call	.sd_ssel_high				; set ssel line
+	call	.sd_ssel_low				; clear ssel line again
+	ld		de, 0xF000					; use de as a counter
+.sd_send_wait_busy_loop:
+	call	spi_read8					; read one byte
+	cp		0xff						; compare it with 0xff
+	jr		z, .sd_write_ok				; if it is 0xff, we are done ok
+ 	dec		de							; decrement counter
+	ld		a,d
+	or		e
+	jr		nz,.sd_send_wait_busy_loop	; if counter is not zero, try again
+	ld		a, 4						; timeout occured, return error 4
+	jr		.sd_write_exit	
+
+; **** complete **********************************************************
+.sd_write_ok:
+	ld		a, 0						; return success flag
+.sd_write_exit:
+	call	.sd_ssel_high				; set ssel line
+	pop 	de							; cleanup stack, restore de
 	ld		a,b							; copy return code
 	ret	
 
