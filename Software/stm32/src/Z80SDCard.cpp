@@ -18,9 +18,7 @@ const uint8_t cmd58[]  =  { 58 | 0x40, 0x40, 0x00, 0x00, 0x00, 0x00 | 0x01 };
 /*--------------------------------------------------------------------------------------------------------
  Constructor
 ---------------------------------------------------------------------------------------------------------*/
-Z80SDCard::Z80SDCard(Z80SPI spi) : z80spi(spi) {
-    
-}
+Z80SDCard::Z80SDCard(Z80SPI spi) : z80spi(spi) {}
 
 /*--------------------------------------------------------------------------------------------------------
  Writes a program to the beginning of the selected partition
@@ -37,7 +35,7 @@ Z80SDCard::sdResult Z80SDCard::writeProgram(uint8_t partition, uint8_t programNu
     parseMBR(&mbr, sdDataBuffer);
     if (mbr.partitiontable[partition].size == 0) { accessCard(false); return invalid_partition; }
 
-    //prepare the variable for writing the porgam
+    //prepare the variables for writing the porgam
     uint32_t bytesToWrite = z80SDPrograms[programNumber].length;
     uint32_t blockNumber = mbr.partitiontable[partition].block;
     uint32_t byteIndex = 0;
@@ -69,8 +67,8 @@ Z80SDCard::sdResult Z80SDCard::formatCard() {
     //sd partition data setup
     uint32_t partitionSize = 0x40000;
     uint32_t partitionStartBlock = 0x800;
-    uint8_t partitionType = 0x83;
-    uint8_t partitionStatus = 0x00;
+    uint8_t  partitionType = 0x7F;
+    uint8_t  partitionStatus = 0x00;
     uint16_t baseAddress = 0x01BE;
 
     //create partitions
@@ -98,6 +96,17 @@ Z80SDCard::sdResult Z80SDCard::formatCard() {
 
     //write block 0
     result = writeBlock(0, sdDataBuffer);
+
+    //reinitialize the buffer
+    for (int i=0; i<SD_BLOCK_SIZE; i++) sdDataBuffer[i] = 0;
+    partitionStartBlock = 0x800;
+
+    //write one buffer of zeros to the beginning of each sector. This "sort of" empties the data
+    for (int i=0; i<4; i++) {
+        writeBlock(partitionStartBlock, sdDataBuffer);
+        partitionStartBlock += partitionSize;
+    }
+
     accessCard(false);
     return result;
 }
@@ -138,7 +147,7 @@ void Z80SDCard::parseMBR(mbrResult* mbr, uint8_t* src) {
 }
 
 /*--------------------------------------------------------------------------------------------------------
- Accesses the card, reads block zero, and parse the partition information
+ Accesses the card, read block zero, and parse and return the partition information
  ---------------------------------------------------------------------------------------------------------*/
 Z80SDCard::mbrResult Z80SDCard::readMBR() {
     mbrResult result;

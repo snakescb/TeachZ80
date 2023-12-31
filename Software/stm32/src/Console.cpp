@@ -17,7 +17,8 @@
 
 /* String Constants ------------------------------------------------------------------------------------ */  
 const char headerDivider[]    =   "**************************************************************";
-const char menuDivider[]      =   " --------------------------------------------------";
+const char menuDivider[]      =   " -------------------------------------------------------------";
+const char menuDividerLong[]  =   " ---------------------------------------------------------------------------------";
 const char* menuTitles[]    = { " Welcome ", 
                                 " TeachZ80 - Main Menu", 
                                 " TeachZ80 - Main Menu - Clocks", 
@@ -197,7 +198,7 @@ void Console::drawMenu() {
         case flashdumpresult: {
             drawLine("");
             drawLineFormat(" Flash Dump 0x%04X - 0x%04X", config.configdata.flash.dumpStart, config.configdata.flash.dumpEnd);
-            drawLine(" -------------------------------------------------------------------------");
+            drawLine(menuDividerLong);
 
             z80flash.setMode(true);
             uint16_t numlines = (config.configdata.flash.dumpEnd + 1 - config.configdata.flash.dumpStart) >> 4;
@@ -209,18 +210,17 @@ void Console::drawMenu() {
                 for (int j=0; j<8; j++) Serial.printf(" %02X", databuffer[j]);
                 Serial.print(" ");
                 for (int j=8; j<16; j++) Serial.printf(" %02X", databuffer[j]);
-                Serial.print("  ");
-
+                Serial.print("  |");
                 for (int j=0; j<16; j++) {
                     if ((databuffer[j] >= 21) && (databuffer[j] < 127)) Serial.write(databuffer[j]);
                     else Serial.write('.');
                 }
-                drawLine("");
+                drawLine("|");
                 address += 0x10;
             }
             z80flash.setMode(false);
      
-            drawLine(" -------------------------------------------------------------------------");
+            drawLine(menuDividerLong);
             drawLine(" 9: Back");
             break;
             break;
@@ -255,14 +255,14 @@ void Console::drawMenu() {
             drawLine(" Warning: Flash Bank will be erased and rewritten!");
             drawLine("");            
             drawLine(" Available Programs");
-            drawLine(" -------------------------------------------------------------------------");
+            drawLine(menuDividerLong);
             for (int i=0; i<sizeof(z80FlashPrograms) / sizeof(z80Program_t); i++) {
                 Serial.printf(" %u: ", i+1);
                 Serial.print(z80FlashPrograms[i].name);
                 Serial.printf(" (%u Bytes)", z80FlashPrograms[i].length);
                 drawLine("");
             }
-            drawLine(" -------------------------------------------------------------------------");
+            drawLine(menuDividerLong);
             drawLine(" 9: Back");
             break;
         }
@@ -348,12 +348,12 @@ void Console::drawMenu() {
                     }
                 }
                 else {
-                    drawLine(" MBR read successful from card.");
+                    drawLine(" MBR read successfully from card.");
                     if (mbrResult.partitions == 0) drawLine(" ERROR: MBR is invalid, no partitions found. Please format the card.");
                     else {
                         drawLine("");
-                        drawLine(" SD-Card partition table");
-                        drawLine(menuDivider);
+                        drawLine(" SD-Card partition table");                        
+                        drawLine(menuDividerLong);
                         for (int i=0; i<4; i++) {                            
                             Serial.printf(" Partition %u: ", i+1);
                             if (mbrResult.partitiontable[i].size > 0) {
@@ -363,9 +363,10 @@ void Console::drawMenu() {
                                 Serial.printf(" - Type %2Xh", mbrResult.partitiontable[i].type);
                                 Serial.printf(" - Status %2Xh", mbrResult.partitiontable[i].status);
                             }
-                            else Serial.print(" INVALID");
-                            drawLine("");
+                            else Serial.print(" INVALID");    
+                            drawLine("");                        
                         }
+                        drawLine(menuDividerLong);                     
                     }
                 }
             }            
@@ -410,14 +411,14 @@ void Console::drawMenu() {
             drawLine(" Warning: Data in Partition 1 will be overwritten!");
             drawLine("");            
             drawLine(" Available Programs");
-            drawLine(" -------------------------------------------------------------------------");
+            drawLine(menuDividerLong);
             for (int i=0; i<sizeof(z80SDPrograms) / sizeof(z80Program_t); i++) {
                 Serial.printf(" %u: ", i+1);
                 Serial.print(z80SDPrograms[i].name);
                 Serial.printf(" (%u Bytes)", z80SDPrograms[i].length);
                 drawLine("");
             }
-            drawLine(" -------------------------------------------------------------------------");
+            drawLine(menuDividerLong);
             drawLine(" 9: Back");
             break;
         }
