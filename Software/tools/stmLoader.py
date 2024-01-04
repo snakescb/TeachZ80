@@ -189,15 +189,13 @@ def sendAddress(address):
 # --------------------------------------------------------------------------------------
 def waitAck(timeout=0.2):
     global serialPort
-    loopCount = timeout*1000
-    while (loopCount):
-        loopCount -= 1
-        if (serialPort.in_waiting > 0):
-            rx = int.from_bytes(serialPort.read(1), "little")
+    tstop = time.time() + timeout
+    while (time.time() < tstop):
+        if (serialPort.in_waiting):
+            rx = serialPort.read(1)[0]
             if (rx == 0x79): return True    # ack received
-            else: return False              #something else received
-        time.sleep(0.001)
-    return False                            #timeout occured
+            else: return False              # something else received
+    return False                            # timout
 
 # --------------------------------------------------------------------------------------
 # Function waiting for stm32 bootloader data
