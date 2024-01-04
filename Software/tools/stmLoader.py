@@ -40,11 +40,11 @@ deviceTable = [
 # --------------------------------------------------------------------------------------
 # Constants and Variables
 # --------------------------------------------------------------------------------------
-serialPort      = None
-commandResponse = None
-bytesPerCommand = 256                        # bytes per command, max 256, must be dividable by 8
-loadStartAddr   = 0x08000000                 # default stm32 flash base address
-baudRate        = 115200                     # Serial baudrate default setting
+serialPort          = None
+bootloaderData      = None
+bytesPerCommand     = 256              # bytes per command, max 256, must be dividable by 8
+loadStartAddr       = 0x08000000       # default stm32 flash base address
+baudRate            = 115200           # Serial baudrate default setting
 
 # **************************************************************************************
 # Functions
@@ -60,11 +60,11 @@ def commandGet():
     if (waitAck()):
         if(readBootloaderData()):
             if (waitAck()):
-                response["protocol"] = f"{(commandResponse[0] & 0xF0) >> 4}.{commandResponse[0] & 0x0F}"
+                response["protocol"] = f"{(bootloaderData[0] & 0xF0) >> 4}.{bootloaderData[0] & 0x0F}"
                 response["erasetype"] = "Unknown"
-                for i in range(len(commandResponse)):
-                    if (commandResponse[i] == 0x43): response["erasetype"] = "Standard"
-                    if (commandResponse[i] == 0x44): response["erasetype"] = "Extended"
+                for i in range(len(bootloaderData)):
+                    if (bootloaderData[i] == 0x43): response["erasetype"] = "Standard"
+                    if (bootloaderData[i] == 0x44): response["erasetype"] = "Extended"
                 response["ok"] = True   
     return response
 
@@ -79,7 +79,7 @@ def commandGetID():
     if (waitAck()):
         if(readBootloaderData()):
             if (waitAck()):
-               response["pid"] = (commandResponse[0] << 8) + commandResponse[1]
+               response["pid"] = (bootloaderData[0] << 8) + bootloaderData[1]
                response["ok"] = True               
     return response
 
@@ -150,10 +150,10 @@ def commandWrite(address, data, timeout=1):
     serialPort.write(bytearray([0x31, 0xCE]))
     if (waitAck()):
         sendAddress(address)
-        if (waitAck()):
-            serialPort.write(bytearray([len(data) - 1]))
+        if (waitAck()):            
             checksum = len(data) - 1            
             for d in data: checksum = checksum ^ d
+            serialPort.write(bytearray([len(data) - 1]))
             serialPort.write(bytearray(data))
             serialPort.write(bytearray([checksum & 0xFF]))
             if (waitAck(timeout)): response["ok"] = True
@@ -192,39 +192,39 @@ def waitAck(timeout=0.2):
     tstop = time.time() + timeout
     while (time.time() < tstop):
         if (serialPort.in_waiting):
-            rx = serialPort.read(1)[0]
-            if (rx == 0x79): return True    # ack received
-            else: return False              # something else received
-    return False                            # timout
+            rxbyte = serialPort.read(1)[0]
+            if (rxbyte == 0x79): return True    # ack received
+            else: return False                  # something else received
+    return False                                # timout
 
 # --------------------------------------------------------------------------------------
 # Function waiting for stm32 bootloader data
 # if numbytes == 0, the next byte received by the bootloader is interpreted as the
 # number of bytes to follow - 1. If numbytes > 0, this specific amount of bytes is received
-# Received bytes are stored in te global commandResponse variable
+# Received bytes are stored in te global bootloaderData variable
 # --------------------------------------------------------------------------------------
 def readBootloaderData(numbytes=0, timeout=1):
     global serialPort
-    global commandResponse
-    loopCount = timeout*1000
-    waitState = 0  
-    bytesreceived = 0
-    if (numbytes > 0):
-        waitState = 1
-        commandResponse = [0]*(numbytes)        
-    while (loopCount):
-        loopCount -= 1
-        while (serialPort.in_waiting > 0):
-            rx = int.from_bytes(serialPort.read(1), "little")
-            if (waitState == 0):               
-                commandResponse = [0]*(rx+1)
-                waitState = 1
-            elif (waitState == 1):
-                commandResponse[bytesreceived] = rx
-                bytesreceived += 1
-                if (bytesreceived == len(commandResponse)): return True     
-        time.sleep(0.001)          
-    return False    #timeout
+    global bootloaderData
+    tstop = time.time() + timeout  
+    readCount = 0
+    # get/set the number of bytes to receive
+    if (numbytes > 0): bootloaderData = [0]*numbytes
+    else:
+        while (time.time() < tstop):
+            if (serialPort.in_waiting):
+                rxbyte = serialPort.read(1)[0]
+                bootloaderData = [0]*(rxbyte + 1)
+                break
+        return False                            #timeout
+    #read required amount of bytes
+    while (time.time() < tstop):
+        if (serialPort.in_waiting):
+            rxbyte = serialPort.read(1)[0]
+            bootloaderData[readCount] = rxbyte
+            readCount += 1
+            if (readCount == len(bootloaderData)): return True              
+    return False                                #timeout
 
 # --------------------------------------------------------------------------------------
 # Check on each comport if a stm32 in DFU mode is reachable. 
@@ -232,7 +232,7 @@ def readBootloaderData(numbytes=0, timeout=1):
 # --------------------------------------------------------------------------------------
 def autoConnectBootloader():    
     # Collect comport information
-    # Check on any port if it can connect to a bootloader      
+    # Check on any port if it can connect to a stm32 DFU      
     global serialPort
     for listport in serial.tools.list_ports.comports():
         response = conntectBootloader(listport.device)
@@ -244,18 +244,21 @@ def autoConnectBootloader():
 # tries to connect with DFU protocol directly. If this fails, it sends thee magic word,
 # using "non-DFU" serial settings, and then tries again. Last but not least, it is possible
 # a device already is connected (in case a previous operation failed). For this, try to 
-# execute the Get-ID command. If this fails as well, give up
+# execute the Get-ID command. If all fails, give up on this port
 # after this, if successful, the global serialPort object is open and connected to the stm32
 # --------------------------------------------------------------------------------------
 def conntectBootloader(port):
     global serialPort
     try:
         # send bootloader start command        
-        # When bootloader sends an ack, it is successfully connected. If not, change the serial mod
+        # When bootloader sends an ack, it is successfully connected.         
         serialPort = serial.Serial(port, baudrate=baudRate, bytesize=serial.EIGHTBITS, parity=serial.PARITY_EVEN, stopbits=serial.STOPBITS_ONE, timeout=1)  # open serial port            
         serialPort.write(bytearray([0x7F]))   
-        if (waitAck()): return "connected"
-        serialPort.close()
+        if (waitAck()): return "connected"        
+        # Device did not respond, it may be possible it already is connected. Try to send a getid command and to receive a response
+        result = commandGetID()
+        if (result["ok"]): return "connected"
+        serialPort.close()        
         
         # Change serial settings to standard 115200 8N1, and send the magic sentence        
         serialPort = serial.Serial(port, baudrate=115200, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, timeout=1)  # open serial port             
@@ -264,22 +267,17 @@ def conntectBootloader(port):
         serialPort.close()        
         
         # change back to DFU serial settings, and try to reach the processor again  
-        # if no response, give up
         serialPort = serial.Serial(port, baudrate=baudRate, bytesize=serial.EIGHTBITS, parity=serial.PARITY_EVEN, stopbits=serial.STOPBITS_ONE, timeout=1)  # open serial port    
         serialPort.write(bytearray([0x7F]))   
-        if (waitAck()): return "connected"            
+        if (waitAck()): return "connected"                     
         
-        # try if a device reacts to getID
-        result = commandGetID()
-        if (result["ok"]): return "connected"            
-        
-        # finally, give up
+        # timeout again, give up
         serialPort.close()
         return "noresponse"
                  
     #exception happened, just move to the next port 
     except Exception as e:
-        print(f"{port} - ex: {str(e)}")
+        #print(f"{port} - ex: {str(e)}")
         return "porterror"
          
 # --------------------------------------------------------------------------------------
@@ -354,7 +352,7 @@ if (printhelp):
     print("-p, --port <port>         : Port to use. Default is auto-detect (eg. COM28 on Windows, /dev/ttyUSB0 on Linux distros)")
     print("-b, --baudrate <baudrate> : Serial baudrate. Default is 115200")
     print("-e, --erase               : Full Chip Erase. Default is erase required pages/sectors only")
-    print("-v, --verify              : Verify downloaded code. Default is not do verify downloaded bytes")
+    print("-v, --verify              : Verify. Default is do not verify downloaded bytes")
     printAndExit("")    
 
 #--------------------------------------------------------------------------------------    
@@ -380,8 +378,9 @@ else:
 # GET / GETID COMMAND execution. On error, abort
 #--------------------------------------------------------------------------------------
 getResult = commandGet()
+if (not getResult["ok"]): printAndExit("Error: Get Command Failed")
 getIdResult = commandGetID()
-if ((getResult["ok"] == False) or (getIdResult["ok"] == False)): printAndExit("Error: Get / GetID Command Failed")
+if (not getIdResult["ok"]): printAndExit("Error: Get-ID Command Failed")
 
 #--------------------------------------------------------------------------------------
 # Check if this is a known stm32 device
@@ -401,7 +400,7 @@ else: print (f"{dev['name']} - {getResult['erasetype']} Erase")
 print(f"Bootloader protocol: {getResult['protocol']}")
 
 #--------------------------------------------------------------------------------------
-# If the device is unknow, abort, but send a GO command first, just in case 
+# If the device is unknown, abort, but send a GO command first, just in case 
 #--------------------------------------------------------------------------------------
 if (devType == None): 
     commandGo(loadStartAddr)
@@ -431,7 +430,7 @@ for i in range(math.ceil(len(bindata) / bytesPerCommand)):
 # Calculate the pages/sectors that need to be erased. 0xFFFF for full chip erase
 #--------------------------------------------------------------------------------------
 erasePages = 0xFFFF
-if (fullChipErase == False):
+if (not fullChipErase):
     erasePages = 0
     eraseTopAddress = loadStartAddr - 1
     while (eraseTopAddress < loadStartAddr + len(bindata) - 1):
@@ -448,8 +447,7 @@ print(f"{len(recordlist)} download records created")
 #--------------------------------------------------------------------------------------
 # Erase flash
 #--------------------------------------------------------------------------------------
-if (fullChipErase): 
-    print("Full chip erase... ")
+if (fullChipErase): print("Full chip erase... ")
 else:
     if ("page" in devType): print(f"Erasing {erasePages} flash-pages (0x{loadStartAddr:0>8X} - 0x{eraseTopAddress:0>8X})... ")
     else: print(f"Erasing {erasePages} flash-sectors (0x{loadStartAddr:0>8X} - 0x{eraseTopAddress:0>8X})... ")
@@ -485,7 +483,7 @@ if (verify):
         readResult = commandRead(rec["address"], len(rec["data"]))
         if (readResult["ok"]):
             for i in range(len(rec["data"])):
-                if(commandResponse[i] != rec["data"][i]):
+                if(bootloaderData[i] != rec["data"][i]):
                     print("Error")
                     printAndExit("Error while verifying data record. Aborting")
             print("OK")                
