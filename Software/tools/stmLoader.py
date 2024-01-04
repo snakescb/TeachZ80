@@ -193,7 +193,7 @@ def waitAck(timeout=0.2):
     while (loopCount):
         loopCount -= 1
         if (serialPort.in_waiting > 0):
-            rx = int.from_bytes(serialPort.read(1))
+            rx = int.from_bytes(serialPort.read(1), "little")
             if (rx == 0x79): return True
             else: return False  #something else received
         time.sleep(0.001)
@@ -217,7 +217,7 @@ def readBootloaderData(numbytes=0, timeout=1):
     while (loopCount):
         loopCount -= 1
         while (serialPort.in_waiting > 0):
-            rx = int.from_bytes(serialPort.read(1))
+            rx = int.from_bytes(serialPort.read(1), "little")
             if (waitState == 0):               
                 commandResponse = [0]*(rx+1)
                 waitState = 1
@@ -273,6 +273,7 @@ def conntectBootloader(port):
                  
     #exception happened, just move to the next port 
     except Exception as e:
+        print(f"{port} - ex: {str(e)}")
         return "porterror"
          
 # --------------------------------------------------------------------------------------
