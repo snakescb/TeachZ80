@@ -40,12 +40,14 @@ deviceTable = [
 # --------------------------------------------------------------------------------------
 # Constants and Variables
 # --------------------------------------------------------------------------------------
-serialPort          = None
-bootloaderData      = None
 bytesPerCommand     = 256              # bytes per command, max 256, must be dividable by 8
 loadStartAddr       = 0x08000000       # default stm32 flash base address
 baudRate            = 115200           # Serial baudrate default setting
 progressDivider     = 20               # display every n-th progress message only
+binfile             = "None"           # binary input/output file, provided by arg 1
+fullChipErase       = False            # True for full chip erase
+verify              = False            # True flash content should be verified
+port                = "auto"           # Comport to use
 
 # **************************************************************************************
 # Functions
@@ -310,16 +312,14 @@ def printAndExit(exitmessage, exitcode=1):
 # **************************************************************************************
 # Main Program
 # **************************************************************************************
+serialPort          = None
+bootloaderData      = None
+
 #--------------------------------------------------------------------------------------
 # Process commandline arguments
 #--------------------------------------------------------------------------------------
-print("")
-binfile = "None"
-fullChipErase = False
-verify = False         
-program = True            
+print("")   
 printhelp = False
-port = "auto"
 args = len(sys.argv) - 1
 pos = 1
 while (args >= pos):
