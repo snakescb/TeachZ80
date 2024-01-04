@@ -302,10 +302,10 @@ def printProgressResult(recordnumber, numrecords, result):
 # --------------------------------------------------------------------------------------
 # Prints exit code to screen and exits
 # --------------------------------------------------------------------------------------
-def printAndExit(exitmessage):
+def printAndExit(exitmessage, exitcode=1):
     print(exitmessage)
     print("")
-    exit()
+    exit(exitcode)
 
 # **************************************************************************************
 # Main Program
@@ -506,7 +506,7 @@ if (verify):
 goResult = commandGo(loadStartAddr)
 print("")
 if (not goResult["ok"]): printAndExit("Error: Go Command Failed")
-printAndExit("DOWNLOAD COMPLETED SUCCESSFULLY")
+printAndExit("DOWNLOAD COMPLETED SUCCESSFULLY", 0)
    
 
     
