@@ -45,7 +45,7 @@ bootloaderData      = None
 bytesPerCommand     = 256              # bytes per command, max 256, must be dividable by 8
 loadStartAddr       = 0x08000000       # default stm32 flash base address
 baudRate            = 115200           # Serial baudrate default setting
-progressDivider     = 10               # display every n-th progress message only
+progressDivider     = 20               # display every n-th progress message only
 
 # **************************************************************************************
 # Functions
@@ -275,9 +275,7 @@ def conntectBootloader(port):
         return "noresponse"
                  
     #exception happened, just move to the next port 
-    except Exception as e:
-        #print(f"{port} - ex: {str(e)}")
-        return "porterror"
+    except Exception as e: return "porterror"
          
 # --------------------------------------------------------------------------------------
 # Prints the load/verify progress to the screen
@@ -287,11 +285,11 @@ def printProgressStart(recordnumber, numrecords, text):
         bocklastrecord  = recordnumber + progressDivider - 1
         if (bocklastrecord > numrecords): bocklastrecord = numrecords
         percentage = bocklastrecord*100 / numrecords
-        print(f"{text} {recordnumber: >4} to {bocklastrecord : >4} of {numrecords: >4} -{percentage: 4.0f}% - [", end="")        
+        print(f"{text} {recordnumber: >4} to {bocklastrecord : >4}  ( of {numrecords: >4} ) - [", end="")        
         dots = round(percentage / 3)
         for i in range(dots): print("*", end="")
         for i in range(dots, 33): print(" ", end="")
-        print("] - ", end="")
+        print(f"] -{percentage: 4.0f}% - ", end="")
         
 # --------------------------------------------------------------------------------------
 # Prints the the result of the last progress print
@@ -471,6 +469,7 @@ if (not eraseResult["ok"]): printAndExit("Error while erasing flash. Aborting")
 #--------------------------------------------------------------------------------------
 # Data Download
 #--------------------------------------------------------------------------------------
+print("")
 reccount = 0
 for rec in recordlist:
     reccount += 1
@@ -484,6 +483,7 @@ for rec in recordlist:
 #--------------------------------------------------------------------------------------
 # Verify Data
 #--------------------------------------------------------------------------------------
+print("")
 if (verify):
     reccount = 0
     for rec in recordlist:
