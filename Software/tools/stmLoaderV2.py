@@ -3,7 +3,7 @@
 #
 # This tool downloads a given bin file to and stm32 processor using the built-in 
 # flashloader. It sends a magic word to the stm32, which (if supported) reboots
-# the CPU to system memory.
+# the CPU to system memory (DFU mode).
 #
 # Expected arguments: <binfile.bin>
 # Example usage: python3 stm32loader.py firmware.bin
@@ -20,7 +20,7 @@ import sys, os.path, serial, serial.tools.list_ports, time, math
 # --------------------------------------------------------------------------------------
 # Version
 # --------------------------------------------------------------------------------------
-versionString = "1.0"
+versionString = "2.0"
 
 # --------------------------------------------------------------------------------------
 # Supported Devices 
@@ -182,12 +182,27 @@ def commandRead(address, numbytes, timeout=1):
 def sendAddress(address):
     crc = (address >> 24) ^ (address >> 16) ^ (address >> 8) ^ (address)       
     serialPort.write(bytearray([address >> 24 & 0xFF, address >> 16 & 0xFF, address >> 8 & 0xFF, address & 0xFF, crc & 0xFF]))
+    
+def dataRxThread():
+    global serialPort
+    while (True):
+        try:
+            while (serialPort.in_waiting > 0):
+                rx = serialPort.read(1)[0]
+                dataReceiver(rx)
+                   
+        except Exception as e:
+            pass                       
+    
+def dataReceiver(rxChar):
+    print(rxChar)
 
 # --------------------------------------------------------------------------------------
 # Function waiting for stm32 bootloader ack
 # This function expects the next byte received being a ack, else it is an error
 # --------------------------------------------------------------------------------------
 def waitAck(timeout=0.2):
+    return False
     global serialPort
     loopCount = timeout*1000
     while (loopCount):
@@ -206,6 +221,7 @@ def waitAck(timeout=0.2):
 # Received bytes are stored in te global commandResponse variable
 # --------------------------------------------------------------------------------------
 def readBootloaderData(numbytes=0, timeout=1):
+    return False
     global serialPort
     global commandResponse
     loopCount = timeout*1000
@@ -235,7 +251,6 @@ def readBootloaderData(numbytes=0, timeout=1):
 def autoConnectBootloader():    
     # Collect comport information
     # Check on any port if it can connect to a bootloader      
-    global serialPort
     for listport in serial.tools.list_ports.comports():
         response = conntectBootloader(listport.device)
         if (response == "connected"): return listport.name    
@@ -244,44 +259,36 @@ def autoConnectBootloader():
 # --------------------------------------------------------------------------------------
 # Connect to stm32 bootloader on a specific port
 # tries to connect with DFU protocol directly. If this fails, it sends thee magic word,
-# using "non-DFU" serial settings, and then tries again. Last but not least, it is possible
-# a device already is connected (in case a previous operation failed). For this, try to 
-# execute the Get-ID command. If this fails as well, give up
+# using "non-DFU" serial settings, and then tries again.
 # after this, if successful, the global serialPort object is open and connected to the stm32
 # --------------------------------------------------------------------------------------
 def conntectBootloader(port):
     global serialPort
     try:
-        # send bootloader start command        
-        # When bootloader sends an ack, it is successfully connected. If not, change the serial mod
-        serialPort = serial.Serial(port, baudrate=baudRate, bytesize=serial.EIGHTBITS, parity=serial.PARITY_EVEN, stopbits=serial.STOPBITS_ONE, timeout=1)  # open serial port            
+        # send bootloader start command with DFu serial settings.      
+        # When bootloader sends an ack, it is successfully connected. If not, change the serial mode
+        serialPort = serial.Serial(port, baudrate=baudRate, bytesize=serial.EIGHTBITS, parity=serial.PARITY_EVEN, stopbits=serial.STOPBITS_ONE, timeout=1)           
         serialPort.write(bytearray([0x7F]))   
         if (waitAck()): return "connected"
         serialPort.close()
         
-        # Change serial settings to standard 115200 8N1, and send the magic sentence        
-        serialPort = serial.Serial(port, baudrate=115200, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, timeout=1)  # open serial port             
+        # Change serial settings to standard 115200 8N1, and send the magic sentence, and wait a bit to allow the DFU mode to start        
+        serialPort = serial.Serial(port, baudrate=115200, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, timeout=1)             
         serialPort.write("heySTM32StartYourDFUMode".encode())
         time.sleep(0.2)            
         serialPort.close()        
         
         # change back to DFU serial settings, and try to reach the processor again  
         # if no response, give up
-        serialPort = serial.Serial(port, baudrate=baudRate, bytesize=serial.EIGHTBITS, parity=serial.PARITY_EVEN, stopbits=serial.STOPBITS_ONE, timeout=1)  # open serial port    
+        serialPort = serial.Serial(port, baudrate=baudRate, bytesize=serial.EIGHTBITS, parity=serial.PARITY_EVEN, stopbits=serial.STOPBITS_ONE, timeout=1)    
         serialPort.write(bytearray([0x7F]))   
         if (waitAck()): return "connected"            
-        
-        # try if a device reacts to getID
-        result = commandGetID()
-        if (result["ok"]): return "connected"            
-        
-        # finally, give up
         serialPort.close()
         return "noresponse"
                  
-    #exception happened, just move to the next port 
+    #exception happened, give up with this port 
     except Exception as e:
-        print(f"{port} - ex: {str(e)}")
+        #print(f"{port} - ex: {str(e)}")
         return "porterror"
          
 # --------------------------------------------------------------------------------------
