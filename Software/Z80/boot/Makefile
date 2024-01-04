@@ -1,8 +1,8 @@
 default: clean all
 
-all: bootstrap
+all: boot
 
-bootstrap: bootstrap.bin
+boot: boot.bin
 
 clean:
 	rm -f *.lst *.bin
