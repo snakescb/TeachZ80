@@ -15,6 +15,7 @@
 #include <Z80SPI.h>
 #include <Z80SDCard.h>
 #include <FlashLoader.h>
+#include <Bootloader.h>
 
 /* Types and definitions -------------------------------------------------------------------------------- */
 // Startup delay
@@ -50,7 +51,7 @@ FlashLoader flashloader(z80flash);
 
 /* Initialization --------------------------------------------------------------------------------------- */
 void setup() {
-	HAL_MPU_Disable();
+	
 	Serial.setTx(PA9);
 	Serial.setRx(PA10);	
 	Serial.begin(115200);
@@ -84,6 +85,8 @@ void loop() {
 
 	//Reception of serial characters
 	int rx = Serial.read();
+	if (rx != -1) bootloader_receiver((uint8_t) rx);
+
 	//state machine
 	switch (applicationState) {
 		case Idle: {
@@ -113,6 +116,7 @@ void loop() {
 --------------------------------------------------------------------------------------------------------- */
 void SystemClock_Config(void) {
 
+	//initialize clocks
 	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 

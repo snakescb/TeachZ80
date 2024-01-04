@@ -4,7 +4,7 @@
 # Simple helper to convert bin files to C array
 #
 # Expected arguments: <binfile.bin>
-# Example usage: python binToCode.py blink-flash.bin
+# Example usage: python3 binToCode.py blink-flash.bin
 #
 # Author: Christian Luethi
 # Version: 1.0 - December 12 2023

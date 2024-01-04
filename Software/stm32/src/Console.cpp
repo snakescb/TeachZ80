@@ -18,7 +18,7 @@
 /* String Constants ------------------------------------------------------------------------------------ */  
 const char headerDivider[]    =   "**************************************************************";
 const char menuDivider[]      =   " -------------------------------------------------------------";
-const char menuDividerLong[]  =   " ---------------------------------------------------------------------------------";
+const char menuDividerLong[]  =   " -------------------------------------------------------------------------------";
 const char* menuTitles[]    = { " Welcome ", 
                                 " TeachZ80 - Main Menu", 
                                 " TeachZ80 - Main Menu - Clocks", 
@@ -212,7 +212,7 @@ void Console::drawMenu() {
                 for (int j=8; j<16; j++) Serial.printf(" %02X", databuffer[j]);
                 Serial.print("  |");
                 for (int j=0; j<16; j++) {
-                    if ((databuffer[j] >= 21) && (databuffer[j] < 127)) Serial.write(databuffer[j]);
+                    if ((databuffer[j] > 32) && (databuffer[j] < 127)) Serial.write(databuffer[j]);
                     else Serial.write('.');
                 }
                 drawLine("|");

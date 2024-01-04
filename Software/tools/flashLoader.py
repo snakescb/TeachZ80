@@ -5,7 +5,7 @@
 # Stm32 support processor must be put to flash mode before executed
 #
 # Expected arguments: <binfile.bin>
-# Example usage: python flashloader.py blink-flash.bin
+# Example usage: python3 flashloader.py blink-flash.bin
 #
 # Author: Christian Luethi
 # Version: 1.0 - December 12 2023
@@ -178,7 +178,7 @@ print("")
 print(f"FlashLoader Script Version {versionString}")
 
 # Check arguments provided
-if (len(sys.argv) != 2): printAndExit("Invalid usage. Try 'python flashLoader.py <inputfile.bin>'")
+if (len(sys.argv) != 2): printAndExit("Invalid usage. Try 'python3 flashLoader.py <inputfile.bin>'")
 
 # Check if the input file is readable, if not exit
 filename = str(sys.argv[1])

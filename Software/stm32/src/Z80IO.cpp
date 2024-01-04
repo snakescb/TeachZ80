@@ -10,6 +10,7 @@ Relocates the interrupt table from Flash to RAM
 void z80io_interrupt_config(void) {
     
     //Disable interrupts
+    HAL_MPU_Disable();
     __disable_irq();
 
     //setup and enable iroeq60 interrupt
