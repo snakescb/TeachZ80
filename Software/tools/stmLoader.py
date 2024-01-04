@@ -388,10 +388,10 @@ for dev in deviceTable:
 #--------------------------------------------------------------------------------------
 # Print device information
 #--------------------------------------------------------------------------------------
-print(f"Device type: 0x{getIdResult["pid"]:0>4X} - ", end="")
+print(f"Device type: 0x{getIdResult['pid']:0>4X} - ", end="")
 if (devType == None): print("Unsupported device")
-else: print (f"{dev["name"]} - {getResult["erasetype"]} Erase")   
-print(f"Bootloader protocol: {getResult["protocol"]}")
+else: print (f"{dev['name']} - {getResult['erasetype']} Erase")   
+print(f"Bootloader protocol: {getResult['protocol']}")
 
 #--------------------------------------------------------------------------------------
 # If the device is unknow, abort, but send a GO command first, just in case 
