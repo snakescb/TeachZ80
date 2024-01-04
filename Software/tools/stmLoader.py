@@ -45,6 +45,7 @@ bootloaderData      = None
 bytesPerCommand     = 256              # bytes per command, max 256, must be dividable by 8
 loadStartAddr       = 0x08000000       # default stm32 flash base address
 baudRate            = 115200           # Serial baudrate default setting
+progressDivider     = 10               # display every n-th progress message only
 
 # **************************************************************************************
 # Functions
@@ -192,8 +193,8 @@ def waitAck(timeout=0.2):
     tstop = time.time() + timeout
     while (time.time() < tstop):
         if (serialPort.in_waiting):
-            rxbyte = serialPort.read(1)[0]
-            if (rxbyte == 0x79): return True    # ack received
+            if (serialPort.read()[0] == 0x79): 
+                return True                     # ack received
             else: return False                  # something else received
     return False                                # timout
 
@@ -213,18 +214,16 @@ def readBootloaderData(numbytes=0, timeout=1):
     else:
         while (time.time() < tstop):
             if (serialPort.in_waiting):
-                rxbyte = serialPort.read(1)[0]
-                bootloaderData = [0]*(rxbyte + 1)
+                bootloaderData = [0]*(serialPort.read()[0] + 1)
                 break
-        return False                            #timeout
+        if (time.time() >= tstop): return False  #timeout
     #read required amount of bytes
     while (time.time() < tstop):
         if (serialPort.in_waiting):
-            rxbyte = serialPort.read(1)[0]
-            bootloaderData[readCount] = rxbyte
+            bootloaderData[readCount] = serialPort.read()[0]
             readCount += 1
             if (readCount == len(bootloaderData)): return True              
-    return False                                #timeout
+    return False                                    #timeout
 
 # --------------------------------------------------------------------------------------
 # Check on each comport if a stm32 in DFU mode is reachable. 
@@ -281,16 +280,26 @@ def conntectBootloader(port):
         return "porterror"
          
 # --------------------------------------------------------------------------------------
-# Prints the progress of the download to the screen
+# Prints the load/verify progress to the screen
 # --------------------------------------------------------------------------------------
-def printProgress(recordnumber, numrecords):
-    percentage = recordnumber*100 / numrecords
-    print(f" {recordnumber: >4} of {numrecords: >4} -{percentage: 4.0f}% - ", end="")
-    print("[",end="")
-    dots = round(percentage / 5)
-    for i in range(dots): print("=", end="")
-    for i in range(dots,20): print(" ", end="")
-    print("] - ", end="")
+def printProgressStart(recordnumber, numrecords, text):
+    if (recordnumber % progressDivider == 1):
+        bocklastrecord  = recordnumber + progressDivider - 1
+        if (bocklastrecord > numrecords): bocklastrecord = numrecords
+        percentage = bocklastrecord*100 / numrecords
+        print(f"{text} {recordnumber: >4} to {bocklastrecord : >4} of {numrecords: >4} -{percentage: 4.0f}% - [", end="")        
+        dots = round(percentage / 3)
+        for i in range(dots): print("*", end="")
+        for i in range(dots, 33): print(" ", end="")
+        print("] - ", end="")
+        
+# --------------------------------------------------------------------------------------
+# Prints the the result of the last progress print
+# --------------------------------------------------------------------------------------
+def printProgressResult(recordnumber, numrecords, result):
+    if ((recordnumber % progressDivider == 0) or (recordnumber == numrecords) or (not result)):
+        if (result): print("OK")
+        else: print("ERROR\r\n")
     
 # --------------------------------------------------------------------------------------
 # Prints exit code to screen and exits
@@ -316,18 +325,18 @@ port = "auto"
 args = len(sys.argv) - 1
 pos = 1
 while (args >= pos):
-    arg = sys.argv[pos].upper()
+    arg = sys.argv[pos].lower()
     if (pos == 1): binfile = sys.argv[pos]
-    if ((arg == "-H") or (arg == "--HELP")): printhelp = True
-    if ((arg == "-E") or (arg == "--ERASE")): fullChipErase = True
-    if ((arg == "-V") or (arg == "--VERIFY")): verify = True
-    if ((arg == "-P") or (arg == "--PORT")): 
+    if ((arg == "-h") or (arg == "--help")): printhelp = True
+    if ((arg == "-e") or (arg == "--erase")): fullChipErase = True
+    if ((arg == "-v") or (arg == "--verify")): verify = True
+    if ((arg == "-p") or (arg == "--port")): 
         if (pos + 1 < len(sys.argv)): port = sys.argv[pos+1]
         else: 
             print("Invalid port\r\n")
             printhelp = True
             break
-    if ((arg == "-B") or (arg == "--BAUDRATE")): 
+    if ((arg == "-b") or (arg == "--baudrate")): 
         if (pos + 1 < len(sys.argv)): baudRate = sys.argv[pos+1]
         else: 
             print("Invalid baudrate\r\n")
@@ -346,13 +355,15 @@ if ((os.path.isfile(binfile) == False) and (printhelp == False)):
 # Print command help, then exit
 #--------------------------------------------------------------------------------------            
 if (printhelp):
-    print("usage: python3 stmLoader.py <inputfile.bin> [option]")
+    print("usage: python3 stmLoader.py <inputfile.bin> [options]")
     print("Options and arguments:")
     print("-h, --help                : Display help")
-    print("-p, --port <port>         : Port to use. Default is auto-detect (eg. COM28 on Windows, /dev/ttyUSB0 on Linux distros)")
-    print("-b, --baudrate <baudrate> : Serial baudrate. Default is 115200")
-    print("-e, --erase               : Full Chip Erase. Default is erase required pages/sectors only")
-    print("-v, --verify              : Verify. Default is do not verify downloaded bytes")
+    print("-p, --port <port>         : Port to use (eg. 'COM28' on Windows, '/dev/ttyUSB0' on Linux distros). Default: auto-detect")
+    print("-b, --baudrate <baudrate> : Serial baudrate. Default: 115200")
+    print("-e, --erase               : Full Chip Erase. Default: erase required pages/sectors only")
+    print("-v, --verify              : Verify downloaded bytes. Default: do not verify")
+    print("")
+    print("example: python3 stmLoader.py firmware.bin -p COM28 -b 150000 -v")
     printAndExit("")    
 
 #--------------------------------------------------------------------------------------    
@@ -463,13 +474,12 @@ if (not eraseResult["ok"]): printAndExit("Error while erasing flash. Aborting")
 reccount = 0
 for rec in recordlist:
     reccount += 1
-    print("Downloading ", end="")
-    printProgress(reccount, len(recordlist))
+    printProgressStart(reccount, len(recordlist), "Writing")
     writeResult = commandWrite(rec["address"], rec["data"])
-    if (writeResult["ok"]): print("OK")
+    if (writeResult["ok"]): printProgressResult(reccount, len(recordlist), True)
     else: 
-        print("Error")
-        printAndExit(f"Error while writing record {reccount} of {len(recordlist)}. Aborting")
+        printProgressResult(reccount, len(recordlist), False)
+        printAndExit(f"Error while programming record {reccount} of {len(recordlist)}. Aborting")
         
 #--------------------------------------------------------------------------------------
 # Verify Data
@@ -478,25 +488,24 @@ if (verify):
     reccount = 0
     for rec in recordlist:
         reccount += 1
-        print("Verifying ", end="")
-        printProgress(reccount, len(recordlist))
+        printProgressStart(reccount, len(recordlist), "Verifying")
         readResult = commandRead(rec["address"], len(rec["data"]))
         if (readResult["ok"]):
             for i in range(len(rec["data"])):
                 if(bootloaderData[i] != rec["data"][i]):
-                    print("Error")
-                    printAndExit("Error while verifying data record. Aborting")
-            print("OK")                
+                    printProgressResult(reccount, len(recordlist), False)
+                    printAndExit(f"Error while verifying record {reccount} of {len(recordlist)}. Aborting")
+            printProgressResult(reccount, len(recordlist), True)              
         else: 
-            print("Error")
-            printAndExit("Error while reading data record. Aborting")
+            printProgressResult(reccount, len(recordlist), False)
+            printAndExit(f"Error while reading record {reccount} of {len(recordlist)}. Aborting")
 
 #--------------------------------------------------------------------------------------
 # Complete - Start the loaded code, then exit
 #--------------------------------------------------------------------------------------    
 goResult = commandGo(loadStartAddr)
-if (not goResult["ok"]): printAndExit("Error: Go Command Failed")
 print("")
+if (not goResult["ok"]): printAndExit("Error: Go Command Failed")
 printAndExit("DOWNLOAD COMPLETED SUCCESSFULLY")
    
 
