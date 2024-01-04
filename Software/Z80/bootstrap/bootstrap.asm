@@ -251,6 +251,8 @@ bootstrap:  org  0x0000						; Z80 cold boot vector
 	ld		ix, 4							; restore the stack
 	add		ix, sp
 	ld		sp, ix							; sp = sp + 4
+	ld		a, 1							; According Johns code, firmware version 1
+	ld		c, 1							; According Johns code, we booted from partition 1
 	jp	    z,LOAD_BASE		    			; Run the code that we just read in from the SD card.
 
 .boot_error:
