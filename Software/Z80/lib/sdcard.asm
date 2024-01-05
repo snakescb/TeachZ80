@@ -66,6 +66,7 @@
 	call	spi_write8					; generate 8 clocks
 	ld		a,(gpio_out_cache)			; read output cache
 	and		~gpio_out_sd_ssel			; clear sd_sel bit
+	and		~gpio_out_sd_clk			; not required
 	out		(gpio_out_0),a				; set sd_sel line to the required state
 	ld		(gpio_out_cache), a			; update the output cache with the new state
 	call	spi_write8					; create another 8 clocks
@@ -76,6 +77,7 @@
 	call	spi_write8					; generate 8 clocks
 	ld		a,(gpio_out_cache)			; read output cache
 	or		gpio_out_sd_ssel			; set sd_sel bit
+	and		~gpio_out_sd_clk			; not required
 	out		(gpio_out_0),a				; set sd_sel line to the required state
 	ld		(gpio_out_cache), a			; update the output cache with the new state
 	call	spi_write8					; create another 8 clocks
@@ -284,15 +286,19 @@ sd_initialize:
 ; 	- A = 2 : Timout happened when waiting for data token
 ;	- A = 3	: Invalid data token received
 ;
-; Clobbers AF, BC, IX, IY
+; Clobbers AF, IX
 ;############################################################################
 sd_readBlock:
-	; Stack orgqanization at this point:  sp +5 = block number 31-24
-										; sp +4 = block number 23-16
-										; sp +3 = block number 15-08
-										; sp +2 = block number 07-00
-										; sp +1 = return @ High
-										; sp +0 = return @ Low
+	; Stack orgqanization at this point:  sp +13 = block number 31-24
+										; sp +12 = block number 23-16
+										; sp +11 = block number 15-08
+										; sp +10 = block number 07-00
+										; sp +9 = return @ High
+										; sp +8 = return @ Low
+	push	bc							; sp +6/7 = bc
+	push	hl							; sp +4/5 = hl
+	push	iy							; sp +2/3 = iy
+	push 	de							; sp +0/1 = de
 
 	; **** Generate CMD17 command buffer**************************************
 	ld		ix,.sd_scratch				; ix = buffer to sd command buffer
@@ -300,18 +306,17 @@ sd_readBlock:
 	add		iy,sp						; iy = address if current stackpointer
 
 	ld		(ix+0),17|0x40				; CMD 17 command byte
-	ld		a,(iy+5)					; CMD 17 block number 31-24
+	ld		a,(iy+13)					; CMD 17 block number 31-24
 	ld		(ix+1),a					
-	ld		a,(iy+4)					; CMD 17 block number 23-16		
+	ld		a,(iy+12)					; CMD 17 block number 23-16		
 	ld		(ix+2),a
-	ld		a,(iy+3)					; CMD 17 block number 15-08
+	ld		a,(iy+11)					; CMD 17 block number 15-08
 	ld		(ix+3),a
-	ld		a,(iy+2)					; CMD 17 block number 07-00
+	ld		a,(iy+10)					; CMD 17 block number 07-00
 	ld		(ix+4),a
 	ld		(ix+5),0x00|0x01			; the CRC byte
 
 	; **** Send command to the card ******************************************
-	push	de							; backup de
 	call	.sd_ssel_low				; SSEL line low
 	ld		b,1							; CMD 17 expects 1 byte reponse
 	ld		e,0							; SSEL line controlled manually		
@@ -364,8 +369,11 @@ sd_readBlock:
 
 .sd_read_exit:
 	call	.sd_ssel_high				; set ssel line again
-	pop 	de							; cleanup stack, restire de
+	pop 	de							; cleanup stack
+	pop 	iy							; cleanup stack
+	pop 	hl							; cleanup stack
 	ld		a,b							; copy return code
+	pop 	bc							; cleanup stack
 	ret	
 
 ;############################################################################
@@ -393,15 +401,19 @@ sd_readBlock:
 ;	- A = 3	: Invalid data token received
 ;	- A = 4	: Timout happened while card is busy
 ;
-; Clobbers AF, BC, IX, IY
+; Clobbers AF, IX
 ;############################################################################
 sd_writeBlock:
-	; Stack orgqanization at this point:  sp +5 = block number 31-24
-										; sp +4 = block number 23-16
-										; sp +3 = block number 15-08
-										; sp +2 = block number 07-00
-										; sp +1 = return @ High
-										; sp +0 = return @ Low
+	; Stack orgqanization at this point:  sp +13 = block number 31-24
+										; sp +12 = block number 23-16
+										; sp +11 = block number 15-08
+										; sp +10 = block number 07-00
+										; sp +9 = return @ High
+										; sp +8 = return @ Low
+	push	bc							; sp +6/7 = bc
+	push	hl							; sp +4/5 = hl
+	push	iy							; sp +2/3 = iy
+	push 	de							; sp +0/1 = de
 
 	; **** Generate CMD24 command buffer**************************************
 	ld		ix,.sd_scratch				; ix = buffer to sd command buffer
@@ -409,18 +421,17 @@ sd_writeBlock:
 	add		iy,sp						; iy = address if current stackpointer
 
 	ld		(ix+0),24|0x40				; CMD 24 command byte
-	ld		a,(iy+5)					; CMD 24 block number 31-24
+	ld		a,(iy+13)					; CMD 24 block number 31-24
 	ld		(ix+1),a					
-	ld		a,(iy+4)					; CMD 24 block number 23-16		
+	ld		a,(iy+12)					; CMD 24 block number 23-16	
 	ld		(ix+2),a
-	ld		a,(iy+3)					; CMD 24 block number 15-08
+	ld		a,(iy+11)					; CMD 24 block number 15-08
 	ld		(ix+3),a
-	ld		a,(iy+2)					; CMD 24 block number 07-00
+	ld		a,(iy+10)					; CMD 24 block number 07-00
 	ld		(ix+4),a
 	ld		(ix+5),0x00|0x01			; the CRC byte
 
 	; **** Send command to the card ******************************************
-	push	de							; backup de
 	call	.sd_ssel_low				; SSEL line low
 	ld		b,1							; CMD 24 expects 1 byte reponse
 	ld		e,0							; SSEL line controlled manually		
@@ -462,7 +473,7 @@ sd_writeBlock:
 	ld		a,d
 	or		e
 	jr		nz,.sd_send_wait_token		; if counter is not zero, try again
-	ld		a, 2						; timeout occured, return error 2
+	ld		b, 2						; timeout occured, return error 2
 	jr		.sd_write_exit	
 
 	; **** check data response ***********************************************
@@ -470,14 +481,14 @@ sd_writeBlock:
 	and		0x1f
 	cp		0x05
 	jr		z,.sd_send_wait_busy		; if response is ok, continue
-	ld		a, 3						; else, return error 3
+	ld		b, 3						; else, return error 3
 	jr		.sd_write_exit	
 
 ; **** check data response ***********************************************
 .sd_send_wait_busy:
 	call	.sd_ssel_high				; set ssel line
 	call	.sd_ssel_low				; clear ssel line again
-	ld		de, 0xF000					; use de as a counter
+	ld		de, 0						; use de as a counter
 .sd_send_wait_busy_loop:
 	call	spi_read8					; read one byte
 	cp		0xff						; compare it with 0xff
@@ -486,16 +497,19 @@ sd_writeBlock:
 	ld		a,d
 	or		e
 	jr		nz,.sd_send_wait_busy_loop	; if counter is not zero, try again
-	ld		a, 4						; timeout occured, return error 4
+	ld		b, 4						; timeout occured, return error 4
 	jr		.sd_write_exit	
 
 ; **** complete **********************************************************
 .sd_write_ok:
-	ld		a, 0						; return success flag
+	ld		b, 0						; return success flag
 .sd_write_exit:
 	call	.sd_ssel_high				; set ssel line
-	pop 	de							; cleanup stack, restore de
+	pop 	de							; cleanup stack
+	pop 	iy							; cleanup stack
+	pop 	hl							; cleanup stack
 	ld		a,b							; copy return code
+	pop 	bc							; cleanup stack
 	ret	
 
 ;############################################################################

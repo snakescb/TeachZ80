@@ -1,6 +1,6 @@
 # IMPORTANT - SET where on your system sd partition 1 is
 SD_DEV=/dev/sda1
-DISK_DEF=z80-retro-2k-8m
+DISK_DEF=z80-retro-8k-8m
 
 world: clean all
 all: teachZ80.img diskb.img

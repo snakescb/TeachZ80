@@ -115,7 +115,7 @@ endif
 	push	de			; 32-bit SD block number (big end)
 	push	hl			; 32-bit SD block number (little end)
 	ld	de,.sdbuf		; DE = target buffer to read the 512-byte block
-	call	sd_cmd17		; read the SD block
+	call	sd_readBlock		; read the SD block
 	pop	hl			; clean the SD block number from the stack
 	pop	de
 
@@ -281,7 +281,7 @@ endif
 	push	de			; 32-bit SD block number (big end)
 	push	hl			; 32-bit SD block number (little end)
 	ld	de,.sdbuf		; DE = target buffer to read the 512-byte block
-	call	sd_cmd17		; pre-read the SD block
+	call	sd_readBlock		; pre-read the SD block
 	pop	hl			; clean the SD block number from the stack
 	pop	de
 
@@ -321,7 +321,7 @@ endif
 	push	de			; SD block number to write
 	push	hl
 	ld	de,.sdbuf		; DE = target buffer to read the 512-byte block
-	call	sd_cmd24		; write the SD block
+	call	sd_writeBlock		; write the SD block
 	pop	hl			; clean the SD block number from the stack
 	pop	de
 

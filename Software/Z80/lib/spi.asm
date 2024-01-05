@@ -59,6 +59,7 @@ spi_write8:
 	and		~gpio_out_sd_clk	; clear clock
 	or		gpio_out_sd_mosi	; set mosi
 	out		(gpio_out),a
+	ld 		(gpio_out_cache), a ; final state to output cache
 	ret
 
 ;############################################################################
@@ -91,5 +92,6 @@ spi_read8:
 	spi_read1					; read bit 2
 	spi_read1					; read bit 1
 	spi_read1					; read bit 0
+	ld 		(gpio_out_cache), a ; final state to output cache
 	ld a,e						; final value in a
 	ret

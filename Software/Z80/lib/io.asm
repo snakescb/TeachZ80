@@ -93,3 +93,6 @@ gpio_in_prn_ack:    equ     0x10
 gpio_in_user1:      equ     0x20 
 gpio_in_sd_det:     equ     0x40
 gpio_in_sd_miso:    equ     0x80
+
+; a bitmask representing all of the lobank address bits 
+gpio_out_lobank:	equ	0|(gpio_out_a15|gpio_out_a16|gpio_out_a17|gpio_out_a18)
