@@ -3,7 +3,7 @@ SD_DEV=/dev/sda1
 DISK_DEF=z80-retro-8k-8m
 
 world: clean all
-all: teachZ80.img diskb.img
+all: teachZ80.img driveb.img
 
 # cleans all assembly outputs and filesystems
 clean: 
