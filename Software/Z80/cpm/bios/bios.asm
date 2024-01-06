@@ -190,7 +190,7 @@ endif
 	db		"\r\n\n"
 	db		"****************************************************************************\r\n\n"	
 	db		" Z80 Retro BIOS Copyright (C) 2021 John Winans\r\n"
-	db		" Reworked for TeachZ80 by Christian Luethi\r\n"
+	db		" Reworked for TeachZ80 2024 Christian Luethi\r\n"
 	db	    " CP/M 2.2 Copyright (C) 1979 Digital Research\r\n\n"
 	db		"****************************************************************************\r\n\0"
 

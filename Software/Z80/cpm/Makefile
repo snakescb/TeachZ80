@@ -1,9 +1,13 @@
 # IMPORTANT - SET where on your system sd partition 1 is
 SD_DEV=/dev/sda1
 DISK_DEF=z80-retro-8k-8m
+DRIVES_TO_CLEAN=8
 
-world: clean all
-all: teachZ80.img driveb.img
+#make sure these are rebuilt always 
+.PHONY: cpm.bin
+
+default: clean all
+all: teachZ80.img
 
 # cleans all assembly outputs and filesystems
 clean: 
@@ -13,36 +17,24 @@ clean:
 cpm.bin: 
 	z80asm bios/bios.asm -o cpm.bin --list=cpm.lst --label=cpm.sym -I../lib -Ibios -Icpm-2.2/src
 
-# creates a bootable base image with the cpm including cpm basic programs
+# creates a bootable base image with the cpm including cpm basic programs, assemblers and adventure game
 teachZ80.img: cpm.bin
-	cp filesystem/diskdefs .
 	rm -rf $@
 	mkfs.cpm -f ${DISK_DEF} -b $^ $@
 	cpmcp -f ${DISK_DEF} $@ cpm-2.2/filesystem/* 0:
 	cpmcp -f ${DISK_DEF} $@ filesystem/assemblers/sid/*.com 0:	
-	rm diskdefs
-
-# creates a non bootable image including adventures
-driveb.img:
-	cp filesystem/diskdefs .
-	rm -rf $@
-	mkfs.cpm -f ${DISK_DEF} $@
 	cpmcp -f ${DISK_DEF} $@ filesystem/adventure/* 0:
-	rm diskdefs
 
 # burns image to the start of the defined partition
 burn-boot: teachZ80.img
 	sudo dd if=$< of=${SD_DEV} bs=512 seek=00x16384 conv=fsync
 
-burn-driveb: driveb.img
-	sudo dd if=$< of=${SD_DEV} bs=512 seek=01x16384 conv=fsync
-
 # DANGEROUS: Erases all 16 8mb drives from the sd card and initializes them wit 0xe5
 clean-sd: 
-	LC_CTYPE=C tr '\0' '\345' < /dev/zero | sudo dd of=$(SD_DEV) bs=8M count=2 conv=fsync iflag=fullblock
+	LC_CTYPE=C tr '\0' '\345' < /dev/zero | sudo dd of=$(SD_DEV) bs=8M count=${DRIVES_TO_CLEAN} conv=fsync iflag=fullblock
 
 # creates an all new empty sd card with drive a and b populated
-distro: clean teachZ80.img clean-sd burn-boot burn-driveb
+distro: clean teachZ80.img clean-sd burn-boot
 
 # Erases all 16 8mb drives from the sd card and initializes them wit 0xe5
 ls: 
