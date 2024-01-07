@@ -425,7 +425,7 @@ endif
 ; 16384  7  127      15         7
 ;
 ; ** NOTE: This filesystem design is inefficient because it is unlikely
-;          that ALL of the allocation blocks will ultimately get used!a
+;          that ALL of the allocation blocks will ultimately get used!
 ;##########################################################################
 
 nocache_dph:	macro	sdblk_hi sdblk_lo
@@ -441,8 +441,8 @@ nocache_dph:	macro	sdblk_hi sdblk_lo
 	dw	sdblk_hi	; +18
 
 .alv:	ds	0
-	ds	(1021/8)+1,0xaa	; scratchpad used by BDOS for disk allocation info
-	endm
+		ds	(1021/8)+1,0xaa	; scratchpad used by BDOS for disk allocation info
+		endm
 
 ;##########################################################################
 ; The DPB is shared by all the SD drives.

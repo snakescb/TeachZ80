@@ -29,18 +29,15 @@
 ;    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301
 ;    USA
 ;
-;
-;****************************************************************************
-
 ;****************************************************************************
 ;
 ; Memory banks:
 ;
 ; BANK     Usage
-;   0    SD cache bank 0
-;   1    SD cache bank 1
-;   2    SD cache bank 2
-;   3    SD cache bank 3
+;   0    SD cache bank 0 - For cached disk driver, else unused
+;   1    SD cache bank 1 - For cached disk driver, else unused
+;   2    SD cache bank 2 - For cached disk driver, else unused
+;   3    SD cache bank 3 - For cached disk driver, else unused
 ;   4
 ;   5
 ;   6
@@ -57,7 +54,6 @@
 ;****************************************************************************
 .low_bank:	equ		14	; The RAM BANK to use for the bottom 32K
 
-
 ;##########################################################################
 ; set .debug to:
 ;    0 = no debug output
@@ -65,72 +61,32 @@
 ;    2 = print all the above plus the primairy 'normal' debug messages
 ;    3 = print all the above plus verbose 'noisy' debug messages
 ;##########################################################################
-.debug:		equ	0
+.debug:		equ		0
 
 include	'io.asm'
 include	'memory.asm'
 
-	org		LOAD_BASE		; Where the boot loader places this code.
-
+org		LOAD_BASE		; Where the boot loader places this code.
+;##########################################################################
+;
+; BIOS ENTRY POINT
+;
+;##########################################################################
+.bios_load:
 	; When we arrive here from the boot loader:
 	; If A=0 then the SD was booted from a partition that starts at 0x800.
 	;
 	; If A=1 then:
-	; C = partition number (1, 2, 3 or 4)
-	; DE = the high 16 bits of the starting SD block number
-	; HL = the low 16 bits of the starting SD block number
+	; 	C = partition number (1, 2, 3 or 4)
+	; 	DE = the high 16 bits of the starting SD block number
+	; 	HL = the low 16 bits of the starting SD block number
 	or		a
 	jp		z,.bios_boot
 
 	; A != 0, patch the BIOS to use the given offset when accessing the SD card
-	ld		(disk_offset_low),hl
-	ld		(disk_offset_hi),de
+	ld		(disk_offset_low), hl
+	ld		(disk_offset_hi), de
 	jp		.bios_boot
-
-	; The 'org' in cpm22.asm does not generate any fill so we must
-	; padd memory out to the base location of CP/M
-	ds		CPM_BASE-$,0xff
-
-;##########################################################################
-;
-; In a traditional system, the CP/M CCP and BDOS is manually copied into
-; place when linking it with the BIOS.  
-;
-; In this build we cheat by simply compiling the CP/M source in with the 
-; BIOS.
-;
-;##########################################################################
-include '../cpm-2.2/src/cpm22.asm'
-
-;##########################################################################
-;
-; The BIOS vector table has to have its entries named AND located precisely
-; to match the included CP/M code above.  
-;
-; Specifically, the BIOS branch vectors must start at CPM_BASE+0x1600.  
-;
-;##########################################################################
-if $ != CPM_BASE+0x1600
-	ERROR	THE BIOS VECTOR TABLE IS IN THE WRONG PLACE
-endif
-
-BOOT:   JP      .bios_boot
-WBOOT:  JP      .bios_wboot
-CONST:  JP      .bios_const
-CONIN:  JP      .bios_conin
-CONOUT: JP      .bios_conout
-LIST:   JP      .bios_list
-PUNCH:  JP      .bios_punch
-READER: JP      .bios_reader
-HOME:   JP      disk_home
-SELDSK: JP      disk_seldsk
-SETTRK: JP      disk_settrk
-SETSEC: JP      disk_setsec
-SETDMA: JP      disk_setdma
-READ:   JP      disk_read
-WRITE:  JP      disk_write
-PRSTAT: JP      .bios_prstat
-SECTRN: JP      disk_sectrn
 
 ;##########################################################################
 ;
@@ -186,13 +142,72 @@ endif
 	call	disk_init		; initialize anything needed for disk read/write 
 	jp		.go_cpm
 
-.boot_msg:
-	db		"\r\n\n"
+;##########################################################################
+; Welcome message
+;##########################################################################
+	.boot_msg:
+	db		"\r\n"
 	db		"****************************************************************************\r\n\n"	
 	db		" Z80 Retro BIOS Copyright (C) 2021 John Winans\r\n"
 	db		" Reworked for TeachZ80 2024 Christian Luethi\r\n"
 	db	    " CP/M 2.2 Copyright (C) 1979 Digital Research\r\n\n"
 	db		"****************************************************************************\r\n\0"
+
+;##########################################################################
+; Memory Padding
+;
+; The 'org' in cpm22.asm does not generate any fill so we must
+; padd memory out to the base location of CP/M
+; CPM_BASE will evaluate to D400
+;##########################################################################
+	ds		CPM_BASE-$,0xff
+
+;##########################################################################
+;
+; In a traditional system, the CP/M CCP and BDOS is manually copied into
+; place when linking it with the BIOS.  
+;
+; In this build we cheat by simply compiling the CP/M source in with the 
+; BIOS.
+;
+;##########################################################################
+include '../cpm-2.2/src/cpm22.asm'
+
+;##########################################################################
+;
+; The BIOS vector table has to have its entries named AND located precisely
+; to match the included CP/M code above.  
+;
+; Specifically, the BIOS branch vectors must start at CPM_BASE+0x1600.  
+;
+;##########################################################################
+if $ != CPM_BASE+0x1600
+	ERROR	THE BIOS VECTOR TABLE IS IN THE WRONG PLACE
+endif
+
+BOOT:   JP      .bios_boot
+WBOOT:  JP      .bios_wboot
+CONST:  JP      .bios_const
+CONIN:  JP      .bios_conin
+CONOUT: JP      .bios_conout
+LIST:   JP      .bios_list
+PUNCH:  JP      .bios_punch
+READER: JP      .bios_reader
+HOME:   JP      disk_home
+SELDSK: JP      disk_seldsk
+SETTRK: JP      disk_settrk
+SETSEC: JP      disk_setsec
+SETDMA: JP      disk_setdma
+READ:   JP      disk_read
+WRITE:  JP      disk_write
+PRSTAT: JP      .bios_prstat
+SECTRN: JP      disk_sectrn
+
+;##########################################################################
+;
+; BIOS FUNCTIONS
+;
+;##########################################################################
 
 ;##########################################################################
 ;
@@ -212,19 +227,16 @@ endif
 ; register C is set to the drive to select after system initialization.
 ;
 ;##########################################################################
-
 ; WARNING: The following assumes that CPM_BASE%128 is zero!
 
 .wb_nsects:	equ (BOOT-CPM_BASE)/128				; number of sectors to load
 .wb_trk:	equ (CPM_BASE-LOAD_BASE)/512		; first track number (rounded down)
 .wb_sec:	equ ((CPM_BASE-LOAD_BASE)/128)&0x03	; first sector number
 
-
 .bios_wboot:
 	; We can't just blindly set SP=bios_stack here because disk_read can overwrite it!
 	; But we CAN set to use other areas that we KNOW are not currently in use!
 	ld		sp,.bios_wboot_stack			; the disk_dirbuf is garbage right now
-
 
 if .debug >= 2
 	call	iputs
@@ -235,7 +247,7 @@ endif
 	ld		c,0								; C = drive number (0=A)
 	call	disk_seldsk						; load the OS from drive A
 
-	ld		bc,.wb_trk						; BC = track number whgere the CCP starts
+	ld		bc,.wb_trk						; BC = track number where the CCP starts
 	call	disk_settrk
 
 	ld		bc,.wb_sec						; sector where the CCP begins on .wb_trk
@@ -253,7 +265,7 @@ endif
 
 	; If there was a read error, stop.
 	call	iputs
-	db      "\r\n\r\nERROR: WBOOT READ FAILED.  HALTING."
+	db      "\r\n\nERROR: WBOOT READ FAILED.  HALTING."
 	db      "\r\n\n*** PRESS RESET TO REBOOT ***\r\n"
 	db      0
 	jp      $               				; endless spin loop
@@ -292,7 +304,7 @@ endif
 
 
 	; fall through into .go_cpm...
-.go_cpm:
+.go_cpm:									; setup the zero page
 	ld		a,0xc3							; opcode for JP
 	ld		(0),a
 	ld		hl,WBOOT
@@ -309,7 +321,7 @@ if .debug >= 3
 	; dump the zero-page for reference
 	ld		hl,0		; start address
 	ld		bc,0x100	; number of bytes
-	ld		e,1		; fancy format
+	ld		e,1			; fancy format
 	call	hexdump
 endif
 
@@ -349,17 +361,7 @@ endif
 ;
 ;##########################################################################
 .bios_conin:
-if 1
 	jp		con_rx_char
-else
-	; a simple hack to let us dump the dmcache status on demand
-	call	con_rx_char
-	cp		0x1B							; escape key??
-	ret		nz								; if not an escape then return
-	call	z,disk_dmcache_debug_wedge		; else tail-call the debug wedge
-	ld		a,0x1B							; restore the trigger key value
-	ret
-endif
 
 ;##########################################################################
 ;
@@ -376,6 +378,8 @@ endif
 ; CP/M 2.2 Alteration Guide p18:
 ; Send the character from register C to the currently assigned listing
 ; device.  The character is in ASCII with zero parity.
+;
+; TeachZ80 has no listing devices supported currently
 ;
 ;##########################################################################
 .bios_list:
@@ -394,7 +398,8 @@ endif
 ;
 ; Note that a 00 value always suffices.
 ;
-; Clobbers AF
+; TeachZ80 has printer supported currently. Return 0
+;
 ;##########################################################################
 .bios_prstat:
 	ld		a,0
@@ -406,7 +411,7 @@ endif
 ; Send the character from register C to the currently assigned punch device.
 ; The character is in ASCII with zero parity.
 ;
-; The Z80 Retro! has no punch device. Discard any data written.
+; TeachZ80 has no punch device. Discard any data written.
 ;
 ;##########################################################################
 .bios_punch:
@@ -419,7 +424,7 @@ endif
 ; register A with zero parity (high order bit must be zero), an end of
 ; file condition is reported by returning an ASCII control-Z (1AH).
 ;
-; The Z80 Retro! has no tape device. Return the EOF character.
+; TeachZ80 has no tape device. Return the EOF character.
 ;
 ;##########################################################################
 .bios_reader:
@@ -427,38 +432,36 @@ endif
 	ret
 
 ;##########################################################################
-; Initialize the console port.  Note that this includes CTC port 1.
+; Initialize the console port (SIO-A), /64 clock divider
 ;##########################################################################
 .init_console:
 	call 	sioa_init_64
 	ret	
 
 ;##########################################################################
-; Libraries
+; Libraries Libraries
 ;##########################################################################
-include 'disk_callgate.asm'
-include 'sio.asm'
-include 'puts.asm'
-include 'hexdump.asm'
-include 'sdcard.asm'
-include 'spi.asm'
+	include "sdcard.asm"
+	include "spi.asm"
+	include "sio.asm"
+	include "puts.asm"
+	include "hexdump.asm"
+	include 'disk_callgate.asm'
 
 ;##########################################################################
 ; General save areas
 ;##########################################################################
-
 gpio_out_cache: 	ds  1		; GPIO output latch cache
 disk_dirbuf:		ds	128		; scratch directory buffer
 .bios_wboot_stack:				; (ab)use the BDOS directory buffer as a stack during WBOOT
-
 
 ;##########################################################################
 ; Temporary stack used for BIOS calls needing more than a few stack levels.
 ;
 ; WARNING: This is expected to be in memory that is NOT bank-switchable!
 ;##########################################################################
-.bios_stack_lo:		ds	64,0x55	; 32 stack levels = 64 bytes (init to analyze)
-bios_stack:						; full descending stack starts /after/ the storage area 
+.bios_stack_lo:		ds	128,0x55 ; 64 stack levels = 128 bytes (init to analyze)
+bios_stack:						 ; full descending stack starts after the save areas 
 
 ;##########################################################################
 if $ < BOOT

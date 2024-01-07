@@ -47,7 +47,7 @@ endif
 
 	ld		l,(ix+10)
 	ld		h,(ix+11)
-	push	hl
+	push	hl					; HL = DPB address
 	pop		ix					; IX = DPB address
 
 	ld		l,(ix-6)
@@ -55,7 +55,7 @@ endif
 
 	push	iy
 	push	bc
-	jp		(hl)
+	call	.jmphl				; Call disk init function
 	pop		bc
 	pop		iy
 
@@ -65,6 +65,9 @@ endif
 	djnz	.init_loop
 
 	ret
+
+.jmphl:
+	jp		(hl)
 
 
 ;****************************************************************************
@@ -322,9 +325,9 @@ disk_sec:			dw	0		; The current sector
 disk_dph:			dw	0		; The DPH of the currently selected disk
 
 ; When running from a disk/SD, disk_offset_xxx represent the physical
-; address of the starting block number.
-disk_offset_low:	dw	0x0800		; backward compatible default block number
-disk_offset_hi:		dw	0x0000
+; address of the sd partition starting block number.
+disk_offset_low:	dw	0x0800	
+disk_offset_hi:		dw	0x0000	
 
 ;****************************************************************************
 ; When a disk is selected, the address of the READ and WRITE driver 

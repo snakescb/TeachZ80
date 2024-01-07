@@ -23,11 +23,13 @@ teachZ80.img: cpm.bin
 	mkfs.cpm -f ${DISK_DEF} -b $^ $@
 	cpmcp -f ${DISK_DEF} $@ cpm-2.2/filesystem/* 0:
 	cpmcp -f ${DISK_DEF} $@ filesystem/assemblers/sid/*.com 0:	
-	cpmcp -f ${DISK_DEF} $@ filesystem/adventure/* 0:
+	mkfs.cpm -f ${DISK_DEF} disk_b.img
+	cpmcp -f ${DISK_DEF} disk_b.img filesystem/adventure/* 0:
 
 # burns image to the start of the defined partition
 burn-boot: teachZ80.img
 	sudo dd if=$< of=${SD_DEV} bs=512 seek=00x16384 conv=fsync
+	sudo dd if=disk_b.img of=${SD_DEV} bs=512 seek=01x16384 conv=fsync
 
 # DANGEROUS: Erases all 16 8mb drives from the sd card and initializes them wit 0xe5
 clean-sd: 
