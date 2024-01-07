@@ -72,6 +72,8 @@ void setup() {
 	
 	applicationState = Idle;
 	statusLed.set(IDLE_LED_ON_PERIOD, IDLE_LED_OFF_PERIOD);
+
+	
 }
 
 /* Main loop -------------------------------------------------------------------------------------------- */
@@ -83,32 +85,27 @@ void loop() {
    	button.process();
 	z80io.process();
 
-	//Reception of serial characters
-	int rx = Serial.read();
-	if (rx != -1) bootloader_receiver((uint8_t) rx);
+	//Process Serial Data
+	int rx = Serial.read();	
+	if (rx != -1){
+		if (!flashloader.serialUpdate((uint8_t) rx)) {
+			bootloader_magicSentence((uint8_t) rx);
+			console.serialUpdate((uint8_t) rx);
+		}
+	}
 
-	//state machine
-	switch (applicationState) {
-		case Idle: {
-			if (rx != -1) console.serialUpdate((uint8_t) rx);
-			if (button.pushTrigger() || (flashloader.loadermode == flashloader.active)) {		
-				if (flashloader.loadermode == flashloader.inactive) flashloader.setMode(true);			
-				statusLed.set(FLASHMODE_LED_ON_PERIOD, FLASHMODE_LED_OFF_PERIOD);
-				applicationState = FlashMode;			
-			}
-			break;
-   		}
+	//enable flash mode with button pushed
+	if (button.pushTrigger()) flashloader.setMode(true);
 
-    	case FlashMode: {			
-			if (rx != -1) flashloader.serialUpdate((uint8_t) rx);
-			if (button.pushTrigger() || (flashloader.loadermode == flashloader.inactive)) {
-				if (flashloader.loadermode == flashloader.active) flashloader.setMode(false);	
-				statusLed.set(IDLE_LED_ON_PERIOD, IDLE_LED_OFF_PERIOD);
-				applicationState = Idle;
-			}
-			break;
-   		}
-   	}
+	//led control
+	if ((applicationState == Idle) && (flashloader.loadermode == flashloader.active)) {
+		statusLed.set(FLASHMODE_LED_ON_PERIOD, FLASHMODE_LED_OFF_PERIOD);
+		applicationState = FlashMode;
+	}
+	if ((applicationState == FlashMode) && (flashloader.loadermode == flashloader.inactive)) {
+		statusLed.set(IDLE_LED_ON_PERIOD, IDLE_LED_OFF_PERIOD);
+		applicationState = Idle;
+	}
 }
 
 /* -------------------------------------------------------------------------------------------------------

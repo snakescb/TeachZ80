@@ -16,11 +16,14 @@
 #define HEX_MESSAGE_ACKNOWLEDGE_1   0xA1
 #define HEX_MESSAGE_FUNCTION_0      0xF0
 
+const uint8_t flashloader_magicSentence[] = "heySTMStartYourFlashMode";
+
 /*--------------------------------------------------------------------------------------------------------
  Constructor
 ---------------------------------------------------------------------------------------------------------*/
 FlashLoader::FlashLoader(Z80Flash flash) : z80flash(flash) {
     loadermode = inactive;
+    magicSentenceCounter = 0;
 }
 
 /*--------------------------------------------------------------------------------------------------------
@@ -37,9 +40,21 @@ void FlashLoader::process(void) {
 /*--------------------------------------------------------------------------------------------------------
  reception of new serial characters
 ---------------------------------------------------------------------------------------------------------*/
-void FlashLoader::serialUpdate(uint8_t c) {
-    
-    //upüdate hex recpetion and check result
+bool FlashLoader::serialUpdate(uint8_t c) {
+
+    // process the magic sentence if flashloader is not active
+    // then return false
+    if (loadermode == inactive) {
+        //process the magic sentence
+        if (c == flashloader_magicSentence[magicSentenceCounter]) {
+            magicSentenceCounter++;
+            if (magicSentenceCounter == sizeof(flashloader_magicSentence) - 1) { setMode(true); magicSentenceCounter = 0; }
+        }
+        else magicSentenceCounter = 0;
+        return false;
+    }
+
+    //update hex recpetion and check result
     switch (rxHex.rxUpdate(c)) {
  
         case rxHex.incomplete: {
@@ -104,6 +119,8 @@ void FlashLoader::serialUpdate(uint8_t c) {
         }
 
     }
+
+    return true;
 }
 
 /*--------------------------------------------------------------------------------------------------------

@@ -1,8 +1,8 @@
 /* -------------------------------------------------------------------------------------------------------
- Bootloader
+ Magic Sentence
 
- When te magic sentence is received through the serial port, the MCU reboots automatically to the
- built-in stm32 bootloader to enable software updates through the stmLoader python script
+ Compares strings received through serial port with predefined magic sentences, which when reveived
+ completely, can start special functions, like entering stm32 DFU mode or starting Z80 flash mode
 
  Author: Christian Luethi
 --------------------------------------------------------------------------------------------------------- */
@@ -13,7 +13,7 @@
     #include <Arduino.h>
 
     extern "C" {
-    void bootloader_receiver(uint8_t c);
+    void bootloader_magicSentence(uint8_t c);
     }
 
 #endif

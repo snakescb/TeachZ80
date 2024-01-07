@@ -58,7 +58,7 @@
             FlashLoader(Z80Flash flash);    
             void setMode(bool modeactive);
             void process(void); 
-            void serialUpdate(uint8_t c);           
+            bool serialUpdate(uint8_t c);           
 
         private:            
             Z80Flash z80flash;
@@ -66,6 +66,7 @@
             uint16_t hexCounter;      
             uint8_t txBuffer[HEX_RECORD_MAX_STRING_LEN];
             HexRecord rxHex, txHex;
+            uint8_t magicSentenceCounter;
 
     };
 
