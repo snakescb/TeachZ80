@@ -5,7 +5,7 @@
 # Stm32 support processor must be put to flash mode before executed
 #
 # Expected arguments: <binfile.bin>
-# Example usage: python3 flashloader.py blink-flash.bin
+# Example usage: python3 z80Loader.py blink-flash.bin
 #
 # Author: Christian Luethi
 # Version: 1.0 - December 12 2023
@@ -125,11 +125,11 @@ def findCommunicationPport():
             com = serial.Serial(port.device, baudrate=115200, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, timeout=1)  # open serial port 
             
             # Send the magic sentence to board, which enables flash loader mode automatically
-            com.write("heySTM32StartYourZ80FlashMode".encode())
+            com.write("heySTMStartYourFlashMode".encode())
             time.sleep(0.1) 
-            
+
             # Send welcome record to the board
-            com.flush()
+            com.reset_input_buffer()
             welcome = HexRecord()
             welcome.parseData(0xAA, 0x0000, [0xF0])
             com.write(welcome.record.encode())
@@ -141,7 +141,8 @@ def findCommunicationPport():
                 loopCount += 1
                 time.sleep(0.01)
                 for i in range(com.in_waiting):
-                    character = com.read(1)
+                    character = com.read()
+                    #print(character[0])
                     result = response.receiverUpdate(character.decode())
                     if (result == 1): 
                         if ((response.type == 0xAA) and (response.payload[0] == 0xA1)): return port.device
@@ -173,7 +174,6 @@ def printAndExit(exitmessage):
     print("")
     exit()
 
-
 # **************************************************************************************
 # Main Program
 # **************************************************************************************
@@ -182,7 +182,7 @@ print("")
 print(f"FlashLoader Script Version {versionString}")
 
 # Check arguments provided
-if (len(sys.argv) != 2): printAndExit("Invalid usage. Try 'python3 flashLoader.py <inputfile.bin>'")
+if (len(sys.argv) != 2): printAndExit("Invalid usage. Try 'python3 z80Loader.py <inputfile.bin>'")
 
 # Check if the input file is readable, if not exit
 filename = str(sys.argv[1])
