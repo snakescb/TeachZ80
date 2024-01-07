@@ -263,7 +263,7 @@ def conntectBootloader(port):
         
         # Change serial settings to standard 115200 8N1, and send the magic sentence        
         serialPort = serial.Serial(port, baudrate=115200, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, timeout=1)  # open serial port             
-        serialPort.write("heySTM32StartYourDFUMode".encode())
+        serialPort.write("heySTMStartYourDFUMode".encode())
         time.sleep(0.2)            
         serialPort.close()        
         

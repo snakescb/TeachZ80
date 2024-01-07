@@ -28,6 +28,59 @@
 ;############################################################################
 
 ;############################################################################
+; Ensure proper SPI line initialization
+; Clobbers A
+;############################################################################
+spi_inititalize:
+	ld		a, (gpio_out_cache)	; get current gpio_out value
+	and		~gpio_out_sd_clk	; clear clock
+	or		gpio_out_sd_mosi	; set MOSI
+	out		(gpio_out),a		; update port
+	ld 		(gpio_out_cache), a ; final state to output cache
+	ret
+
+;############################################################################
+; Creates 8 clock high-low transitions at maximum possible speed
+; Returns the current state of the output latch in A
+; Clobbers: A
+;############################################################################
+spi_fastClock:
+	ld		a, (gpio_out_cache)	; get current gpio_out value
+	or		gpio_out_sd_clk		; set clock
+	out		(gpio_out),a		; update port
+	and		~gpio_out_sd_clk	; clear clock
+	out		(gpio_out),a		; update port
+	or		gpio_out_sd_clk		; set clock
+	out		(gpio_out),a		; update port
+	and		~gpio_out_sd_clk	; clear clock
+	out		(gpio_out),a		; update port
+	or		gpio_out_sd_clk		; set clock
+	out		(gpio_out),a		; update port
+	and		~gpio_out_sd_clk	; clear clock
+	out		(gpio_out),a		; update port
+	or		gpio_out_sd_clk		; set clock
+	out		(gpio_out),a		; update port
+	and		~gpio_out_sd_clk	; clear clock
+	out		(gpio_out),a		; update port
+	or		gpio_out_sd_clk		; set clock
+	out		(gpio_out),a		; update port
+	and		~gpio_out_sd_clk	; clear clock
+	out		(gpio_out),a		; update port
+	or		gpio_out_sd_clk		; set clock
+	out		(gpio_out),a		; update port
+	and		~gpio_out_sd_clk	; clear clock
+	out		(gpio_out),a		; update port
+	or		gpio_out_sd_clk		; set clock
+	out		(gpio_out),a		; update port
+	and		~gpio_out_sd_clk	; clear clock
+	out		(gpio_out),a		; update port
+	or		gpio_out_sd_clk		; set clock
+	out		(gpio_out),a		; update port
+	and		~gpio_out_sd_clk	; clear clock
+	out		(gpio_out),a		; update port
+	ret
+
+;############################################################################
 ; Write 8 bits in C to the SPI port and discard the received data.
 ; It is assumed that the gpio_out_cache value matches the current state
 ; It also assumes, clock is 0 and mosi is 1 when entering
@@ -35,8 +88,7 @@
 ; Clobbers: A
 ;############################################################################
 spi_write1:	macro bitpos
-	and		~gpio_out_sd_clk	; clear clock
-	and 	~gpio_out_sd_mosi	; clear mosi
+	and		0+~(gpio_out_sd_mosi|gpio_out_sd_clk)	; MOSI & CLK = 0
 	bit		bitpos,c			; is the bit of C a 1?
 	jr		z,.write1_low			
 	or		gpio_out_sd_mosi	; set mosi again
@@ -59,31 +111,30 @@ spi_write8:
 	and		~gpio_out_sd_clk	; clear clock
 	or		gpio_out_sd_mosi	; set mosi
 	out		(gpio_out),a
-	ld 		(gpio_out_cache), a ; final state to output cache
 	ret
 
 ;############################################################################
 ; Read 8 bits from the SPI & return it in A.
 ; This will leave: CLK=0, MOSI=Unchanged (should be one)
-; Clobbers A, E
+; Clobbers A, DE
 ;############################################################################
 spi_read1:	macro
-	or		gpio_out_sd_clk		; set clock
+	ld		a, d				; a = inital state
+	or		gpio_out_sd_clk		; set clock bit  (CLK = 1)
 	out		(gpio_out),a		; clock rising edge
-	push 	af					; push a, as we change it after
-	in		a,(gpio_in)			; read MISO
-	and 	gpio_in_sd_miso		; 
+	in		a,(gpio_in)			; read input port
+	and 	gpio_in_sd_miso		; read MISO
 	or		e					; accumulate the current MISO value
-	ld		e,a					; NOTE: note this only works because gpio_in_sd_miso = 0x80
-	rlc		e					; rotate the data buffer
-	pop		af					; load the output chache again
-	and		~gpio_out_sd_clk	; clear the clock bit
+	rlca						; rotate the data buffer
+	ld		e, a				; store e
+	ld		a, d				; a = inital state -> clock falling edge
 	out		(gpio_out),a		; clock falling edge edge
 	endm
 
 spi_read8:
-	ld		e,0					; prepare to accumulate the bits into E
-	ld		a,(gpio_out_cache)	; get current gpio_out value
+	ld		a,(gpio_out_cache)	; get current gpio_out value (CLK = 0)
+	ld		d, a				; save in d for reusing it later
+	ld		e, 0				; initialize e
 	spi_read1					; read bit 7
 	spi_read1					; read bit 6
 	spi_read1					; read bit 5
@@ -92,6 +143,5 @@ spi_read8:
 	spi_read1					; read bit 2
 	spi_read1					; read bit 1
 	spi_read1					; read bit 0
-	ld 		(gpio_out_cache), a ; final state to output cache
-	ld a,e						; final value in a
+	ld 		a,e					; final value in a
 	ret

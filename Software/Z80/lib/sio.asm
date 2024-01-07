@@ -63,15 +63,15 @@
 ; Clobbers HL, BC, AF
 ;##############################################################
 siob_init:
-	ld	c,sio_bc	; port to write into (port B control)
-	jp	.sio_init
+	ld		c,sio_bc	; port to write into (port B control)
+	jp		.sio_init
 
 sioa_init:
-	ld	c,sio_ac	; port to write into (port A control)
+	ld		c,sio_ac	; port to write into (port A control)
 
 .sio_init:
-	ld	hl,.sio_init_wr_16	; point to init string
-	ld	b,.sio_init_len_wr ; number of bytes to send
+	ld		hl,.sio_init_wr_16	; point to init string
+	ld		b,.sio_init_len_wr ; number of bytes to send
 	otir			; write B bytes from (HL) into port in the C reg
 	ret
 
@@ -80,15 +80,15 @@ sioa_init:
 ; Clobbers HL, BC, AF
 ;##############################################################
 siob_init_64:
-	ld	c,sio_bc	; port to write into (port B control)
-	jp	.sio_init_64
+	ld		c,sio_bc	; port to write into (port B control)
+	jp		.sio_init_64
 
 sioa_init_64:
-	ld	c,sio_ac	; port to write into (port A control)
+	ld		c,sio_ac	; port to write into (port A control)
 
 .sio_init_64:
-	ld	hl,.sio_init_wr_64	; point to init string
-	ld	b,.sio_init_len_wr ; number of bytes to send
+	ld		hl,.sio_init_wr_64	; point to init string
+	ld		b,.sio_init_len_wr ; number of bytes to send
 	otir			; write B bytes from (HL) into port in the C reg
 	ret
 
@@ -97,8 +97,8 @@ sioa_init_64:
 ; Clobbers: AF
 ;##############################################################
 sioa_tx_ready:
-	in	a,(sio_ac)	; read sio control status byte
-	and	4		    ; check the xmtr empty bit
+	in		a,(sio_ac)	; read sio control status byte
+	and		4		    ; check the xmtr empty bit
 	ret			    ; a = 0 = not ready
 
 ;##############################################################
@@ -106,8 +106,8 @@ sioa_tx_ready:
 ; Clobbers: AF
 ;##############################################################
 siob_tx_ready:
-	in	a,(sio_bc)	; read sio control status byte
-	and	4		    ; check the xmtr empty bit
+	in		a,(sio_bc)	; read sio control status byte
+	and		4		    ; check the xmtr empty bit
 	ret			    ; a = 0 = not ready
 
 ;##############################################################
@@ -116,17 +116,17 @@ siob_tx_ready:
 ;##############################################################
 con_rx_ready:
 sioa_rx_ready:
-	in	a,(sio_ac)	; read sio control status byte
-	and	1		    ; check the rcvr ready bit
-	ret			    ; 0 = not ready
+	in		a,(sio_ac)	; read sio control status byte
+	and		1		    ; check the rcvr ready bit
+	ret			    	; 0 = not ready
 
 ;##############################################################
 ; Return NZ (with A=1) if sio B rx is ready and Z (with A=0) if not ready. 
 ; Clobbers: AF
 ;##############################################################
 siob_rx_ready:
-	in	a,(sio_bc)	; read sio control status byte
-	and	1		    ; check the rcvr ready bit
+	in		a,(sio_bc)	; read sio control status byte
+	and		1		    ; check the rcvr ready bit
 	ret			    ; 0 = not ready
 
 ;##############################################################
@@ -135,18 +135,18 @@ siob_rx_ready:
 ; Clobbers: AF
 ;##############################################################
 siob_tx_char:
-	call siob_tx_ready
-	jr	 z,siob_tx_char
-	ld	 a,c
-	out	 (sio_bd),a	; send the character
+	call 	siob_tx_ready
+	jr	 	z,siob_tx_char
+	ld	 	a,c
+	out	 	(sio_bd),a	; send the character
 	ret
 
 con_tx_char:
 sioa_tx_char:
-	call sioa_tx_ready
-	jr	 z,sioa_tx_char
-	ld	 a,c
-	out  (sio_ad),a	; send the character
+	call 	sioa_tx_ready
+	jr	 	z,sioa_tx_char
+	ld	 	a,c
+	out  	(sio_ad),a	; send the character
 	ret
 
 ;##############################################################
@@ -156,13 +156,13 @@ sioa_tx_char:
 ;##############################################################
 siob_rx_char:
 	call	siob_rx_ready
-	jr	z,siob_rx_char
-	ld	a,(sio_bd)
+	jr		z,siob_rx_char
+	ld		a,(sio_bd)
 	ret
 
 con_rx_char:
 sioa_rx_char:
 	call	sioa_rx_ready
-	jr	z,sioa_rx_char
-	in	a,(sio_ad)
+	jr		z,sioa_rx_char
+	in		a,(sio_ad)
 	ret

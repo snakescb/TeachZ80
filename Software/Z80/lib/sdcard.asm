@@ -35,52 +35,45 @@
 ;****************************************************************************
 ; Constants
 ;****************************************************************************
-.sd_debug: 		equ 1
-.sd_cmd0:		db	 0|0x40,0,0,0,0,0x94|0x01
-.sd_cmd8:		db	 8|0x40,0,0,0x01,0xaa,0x86|0x01
-.sd_cmd55:		db	55|0x40,0,0,0,0,0x00|0x01
-.sd_acmd41:		db	41|0x40,0x40,0,0,0,0x00|0x01
-.sd_cmd58:		db	58|0x40,0,0,0,0,0x00|0x01
+.sd_debug: 		equ 	 1
+.sd_cmd0:		db	 	 0|0x40,0x00,0x00,0x00,0x00,0x94|0x01
+.sd_cmd8:		db	 	 8|0x40,0x00,0x00,0x01,0xaa,0x86|0x01
+.sd_cmd55:		db		55|0x40,0x00,0x00,0x00,0x00,0x00|0x01
+.sd_acmd41:		db		41|0x40,0x40,0x00,0x00,0x00,0x00|0x01
+.sd_cmd58:		db		58|0x40,0x00,0x00,0x00,0x00,0x00|0x01
 
 ;############################################################################
 ; SSEL = HI (deassert)
 ; wait at least 1 msec after power up
 ; send at least 74 (80) SCLK rising edges
-; Clobbers A, B, C
+; Clobbers A, B
 ;############################################################################
 .sd_wakeup:
 	ld		b,10						; 10*8 = 80 bits to read
-	ld		c,0xFF						; set c=0xff, write will leave MOSI high
 .sd_wakeup_loop:
-	call	spi_write8					; write 8 bits (causes 8 clocks with MOSI high)
+	call	spi_fastClock				; create 8 clocks
 	djnz	.sd_wakeup_loop				; if not yet done, do another byte
 	ret
 
 ;############################################################################
 ; Set SSEL high or low
-; Generate 8 clocks before and after, according SD specification
-; Clobbers A, C
+; Generate 8 clocks before and after changing ssel line, according SD specification
+; Clobbers A
 ;############################################################################
 .sd_ssel_low:
-	ld		c, 0xFF						; set c=0xff, write will leave MOSI high
-	call	spi_write8					; generate 8 clocks
-	ld		a,(gpio_out_cache)			; read output cache
+	call	spi_fastClock				; 8 clocks, A = output latch
 	and		~gpio_out_sd_ssel			; clear sd_sel bit
-	and		~gpio_out_sd_clk			; not required
-	out		(gpio_out_0),a				; set sd_sel line to the required state
 	ld		(gpio_out_cache), a			; update the output cache with the new state
-	call	spi_write8					; create another 8 clocks
+	out		(gpio_out_0),a				; update port
+	call	spi_fastClock				; 8 clocks, output latch remains unchanged
 	ret		
 
 .sd_ssel_high:
-	ld		c, 0xFF						; set c=0xff, write will leave MOSI high
-	call	spi_write8					; generate 8 clocks
-	ld		a,(gpio_out_cache)			; read output cache
+	call	spi_fastClock				; 8 clocks, A = output latch
 	or		gpio_out_sd_ssel			; set sd_sel bit
-	and		~gpio_out_sd_clk			; not required
-	out		(gpio_out_0),a				; set sd_sel line to the required state
 	ld		(gpio_out_cache), a			; update the output cache with the new state
-	call	spi_write8					; create another 8 clocks
+	out		(gpio_out_0),a				; update port
+	call	spi_fastClock				; 8 clocks, output latch remains unchanged
 	ret		
 
 ;############################################################################
@@ -164,6 +157,8 @@
 ; Clobbers everything
 ;############################################################################
 sd_initialize:
+
+	call	spi_inititalize				; initialize port
 
 	; **** Check if there is a card in the slot ******************************	
 	in      a,(gpio_in_0)            	; read input port      
@@ -308,7 +303,7 @@ sd_readBlock:
 	ld		(ix+0),17|0x40				; CMD 17 command byte
 	ld		a,(iy+13)					; CMD 17 block number 31-24
 	ld		(ix+1),a					
-	ld		a,(iy+12)					; CMD 17 block number 23-16		
+	ld		a,(iy+12)					; CMD 17 block number 23-16	
 	ld		(ix+2),a
 	ld		a,(iy+11)					; CMD 17 block number 15-08
 	ld		(ix+3),a

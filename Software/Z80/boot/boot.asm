@@ -250,9 +250,9 @@ boot: 		org  0x0000						; Z80 cold boot vector
 .boot_os:
 	ld      de, (boot_block_high)           ; According Johns code, to boot different partitions
     ld      hl, (boot_block_low)            ; According Johns code, to boot different partitions
-	ld		a, 1							; According Johns code, firmware version 1
-	ld		c, 1							; According Johns code, we booted from partition 1
-	jp	    z,LOAD_BASE		    			; Run the code that we just read in from the SD card.
+	ld		a, 1							; Informs bios that de,hl contain the sd blocknumber booted from
+	ld		c, 1							; Informs bios that partiotion 1 was booted from
+	jp	    LOAD_BASE		    			; Run the code that we just read in from the SD card.
 
 .boot_error:
 	; ##################### OS Loading Error Printing #######################
