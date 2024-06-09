@@ -125,8 +125,8 @@ def findCommunicationPport():
             com = serial.Serial(port.device, baudrate=115200, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, timeout=1)  # open serial port 
             
             # Send the magic sentence to board, which enables flash loader mode automatically
-            com.write("heySTMStartYourFlashMode".encode())
-            time.sleep(0.1) 
+            com.write("..helloTeachZ80FlashLoader".encode())
+            time.sleep(0.2) 
 
             # Send welcome record to the board
             com.reset_input_buffer()

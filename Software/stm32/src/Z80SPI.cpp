@@ -20,7 +20,6 @@ Z80SPI::Z80SPI(Z80IO io) : z80io(io) {
  Write a single byte
 ---------------------------------------------------------------------------------------------------------*/
 void Z80SPI::writeByte(uint8_t data) {
-
     uint8_t mask = 0x80;
     for (int i=0; i<8; i++) {
         outputBuffer = outputBuffer & ~SPI_OUT_CLK;
@@ -41,19 +40,6 @@ void Z80SPI::writeByte(uint8_t data) {
 ---------------------------------------------------------------------------------------------------------*/
 uint8_t Z80SPI::readByte(void) {
     uint8_t result = 0;
-    /*
-    for (int i=0; i<8; i++) {
-        result = result << 1;
-        outputBuffer = outputBuffer & ~SPI_OUT_CLK;
-        z80io.write(SPI_OUT_IOPORT, outputBuffer);
-        outputBuffer = outputBuffer | SPI_OUT_CLK;
-        z80io.write(SPI_OUT_IOPORT, outputBuffer);
-        uint8_t data = z80io.read(SPI_IN_IOPORT);
-        if (data & SPI_IN_MISO) result = result | 0x01;
-    }
-    outputBuffer = outputBuffer & ~SPI_OUT_CLK;
-    z80io.write(SPI_OUT_IOPORT, outputBuffer);
-    */
     for (int i=0; i<8; i++) {
         result = result << 1;        
         outputBuffer = outputBuffer | SPI_OUT_CLK;

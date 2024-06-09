@@ -6,6 +6,7 @@
 #include <Z80Bus.h>
 #include <Z80Flash.h>
 #include <Z80Programs.h>
+#include <CPMFileSystem.h>
 
 /* Types and definitions ------------------------------------------------------------------------------- */  
 #define SCREEN_HEIGHT      21
@@ -50,6 +51,7 @@ extern Config config;
 extern Z80Bus z80bus;  
 extern Z80Flash z80flash;
 extern Z80SDCard z80sdcard;
+extern CPMFileSystem filesystem;
 
 /*--------------------------------------------------------------------------------------------------------
  Constructor
@@ -75,8 +77,6 @@ void Console::begin(void) {
 
     fillScreen();
 }
-
-
 
 /*--------------------------------------------------------------------------------------------------------
  drawMenu
@@ -330,44 +330,28 @@ void Console::drawMenu() {
             drawLine("");
             drawLine(" SD-Card Master Boot Record");
             drawLine(menuDivider);      
-            if (mbrResult.accessresult != z80sdcard.ok) {
-                switch (mbrResult.accessresult) {        
-                    case z80sdcard.nocard:  drawLine(" ERROR: No card detected in SD slot"); break;                    
-                    case z80sdcard.not_idle:  drawLine(" ERROR: Invalid answer: GO_IDLE_STATE command failed"); break;                    
-                    case z80sdcard.invalid_status: drawLine(" ERROR: Invalid answer: SEND_IF_CONDITION command failed"); break;                    
-                    case z80sdcard.not_ready: drawLine(" ERROR: Card not ready. APP_CMD_41 command timed out"); break; 
-                    case z80sdcard.invalid_capacity: drawLine(" ERROR: Unsupported SD card. Use SDHC or SDXC Card"); break; 
-                    default: drawLineFormat(" ERROR: Unknown Error while accessing the card: Code 0x%02X", mbrResult.accessresult); break;
-                }
-            }
+            if (accessresult != z80sdcard.ok) print_sd_AccessError(accessresult);
+            else if (mbrResult.readresult != z80sdcard.ok) print_sd_ReadWriteError(mbrResult.readresult);
             else {
-                if (mbrResult.readresult != z80sdcard.ok) {
-                    switch (mbrResult.accessresult) {     
-                        case z80sdcard.not_ready: drawLine(" ERROR: Card accessible, but not ready to read. CMD17 command failed"); break; 
-                        case z80sdcard.read_timeout: drawLine(" ERROR: Timeout occured while reading card. No data token received"); break; 
-                    }
-                }
+                drawLine(" MBR read successfully from card.");
+                if (mbrResult.partitions == 0) drawLine(" ERROR: MBR is invalid, no partitions found. Please format the card.");
                 else {
-                    drawLine(" MBR read successfully from card.");
-                    if (mbrResult.partitions == 0) drawLine(" ERROR: MBR is invalid, no partitions found. Please format the card.");
-                    else {
-                        drawLine("");
-                        drawLine(" SD-Card partition table");                        
-                        drawLine(menuDividerLong);
-                        for (int i=0; i<4; i++) {                            
-                            Serial.printf(" Partition %u: ", i+1);
-                            if (mbrResult.partitiontable[i].size > 0) {
-                                uint32_t sizemb = mbrResult.partitiontable[i].size*512 >> 20;
-                                Serial.printf(" Start %8Xh", mbrResult.partitiontable[i].block);
-                                Serial.printf(" - Size %8Xh (%4uMB)", mbrResult.partitiontable[i].size, sizemb);
-                                Serial.printf(" - Type %2Xh", mbrResult.partitiontable[i].type);
-                                Serial.printf(" - Status %2Xh", mbrResult.partitiontable[i].status);
-                            }
-                            else Serial.print(" INVALID");    
-                            drawLine("");                        
+                    drawLine("");
+                    drawLine(" SD-Card partition table");                        
+                    drawLine(menuDividerLong);
+                    for (int i=0; i<4; i++) {                            
+                        Serial.printf(" Partition %u: ", i+1);
+                        if (mbrResult.partitiontable[i].size > 0) {
+                            uint32_t sizemb = mbrResult.partitiontable[i].size*512 >> 20;
+                            Serial.printf(" Start %8Xh", mbrResult.partitiontable[i].block);
+                            Serial.printf(" - Size %8Xh (%4uMB)", mbrResult.partitiontable[i].size, sizemb);
+                            Serial.printf(" - Type %2Xh", mbrResult.partitiontable[i].type);
+                            Serial.printf(" - Status %2Xh", mbrResult.partitiontable[i].status);
                         }
-                        drawLine(menuDividerLong);                     
+                        else Serial.print(" INVALID");    
+                        drawLine("");                        
                     }
+                    drawLine(menuDividerLong);                     
                 }
             }            
             drawLine("");
@@ -391,13 +375,9 @@ void Console::drawMenu() {
 
         case sdcardsdresult: {
             drawLine("");
-            if (sdresult == z80sdcard.ok) {
-                drawLine(" SD-Card formatted successfully");
-            }
-            else {
-                drawLine(" ERROR while writing partition table. Error code");
-                drawLineFormat(" Error Code 0x%02X", sdresult);
-            }
+            if (accessresult != z80sdcard.ok) print_sd_AccessError(accessresult);  
+            else if (sdresult != z80sdcard.ok) print_sd_ReadWriteError(sdresult);
+            else drawLine(" SD-Card formatted successfully");
             drawLine("");
             drawLine(" Commands");
             drawLine(menuDivider);
@@ -425,11 +405,9 @@ void Console::drawMenu() {
 
         case sdcardprogramresult: {
             drawLine("");
-            if (sdresult == z80sdcard.ok) drawLine(" Programm written SUCCESSFUL");
-            else {
-                drawLine(" ERROR while writing program. Error code");
-                drawLineFormat(" Error Code 0x%02X", sdresult);
-            }
+            if (accessresult != z80sdcard.ok) print_sd_AccessError(accessresult);  
+            else if (sdresult != z80sdcard.ok) print_sd_ReadWriteError(sdresult);
+            else drawLine(" Programm written SUCCESSFUL");
             drawLine("");
             drawLine(" Commands");
             drawLine(menuDivider);
@@ -461,10 +439,9 @@ void Console::serialUpdate(uint8_t c) {
             if (c == '1') menustate = clocks;
             else if (c == '2') menustate = flash;
             else if (c == '3') menustate = sdcard;
-            else {
-                //Serial.println(c);
-                refreshScreen = false;
-            }
+            else if (c == '4') { filesystem.listFiles(0); refreshScreen = false; }
+            else if (c == '5') { filesystem.listFiles(1); refreshScreen = false; }
+            else refreshScreen = false;
             break;
         }
         case clocks: {
@@ -619,7 +596,9 @@ void Console::serialUpdate(uint8_t c) {
         case sdcard: {
             if (c == '1') { 
                 z80bus.write_controlBit(z80bus.reset, true);
+                accessresult = z80sdcard.accessCard(true);
                 mbrResult = z80sdcard.readMBR(); 
+                z80sdcard.accessCard(false);
                 z80bus.write_controlBit(z80bus.reset, false);
                 menustate = sdcardcheck;
             }
@@ -640,7 +619,9 @@ void Console::serialUpdate(uint8_t c) {
             if (c == KEY_ESC) menustate = sdcard;
             else if ((c == KEY_LINE_FEED) || (c == KEY_CARRIAGE_FEED)) {
                 z80bus.write_controlBit(z80bus.reset, true);
-                sdresult = z80sdcard.formatCard(); 
+                accessresult = z80sdcard.accessCard(true);
+                sdresult = z80sdcard.formatCard(4, 0x800, 0x40000); //4 128MB partitions 
+                z80sdcard.accessCard(false);
                 z80bus.write_controlBit(z80bus.reset, false);
                 menustate = sdcardsdresult;
             }
@@ -661,7 +642,9 @@ void Console::serialUpdate(uint8_t c) {
                     uint8_t programNumber = c - '1';
                     if (programNumber <= (sizeof(z80SDPrograms) / sizeof(z80Program_t)) - 1) { 
                         z80bus.write_controlBit(z80bus.reset, true);
+                        accessresult = z80sdcard.accessCard(true);
                         sdresult = z80sdcard.writeProgram(0, programNumber);
+                        z80sdcard.accessCard(false);
                         z80bus.write_controlBit(z80bus.reset, false);
                         menustate = sdcardprogramresult;
                     }
@@ -684,6 +667,35 @@ void Console::serialUpdate(uint8_t c) {
         clearScreen();        
         drawMenu();
         fillScreen();
+    }
+}
+
+
+/*--------------------------------------------------------------------------------------------------------
+ SD Error Printing functions
+---------------------------------------------------------------------------------------------------------*/
+void Console::print_sd_AccessError(Z80SDCard::sdResult accessresult) {
+    drawLine("");
+    switch (accessresult) {        
+        case z80sdcard.nocard: drawLine(" ERROR: No card detected in SD slot"); break;                    
+        case z80sdcard.not_idle: drawLine(" ERROR: Invalid answer: GO_IDLE_STATE command failed"); break;                    
+        case z80sdcard.invalid_status: drawLine(" ERROR: Invalid answer: SEND_IF_CONDITION command failed"); break;                    
+        case z80sdcard.not_ready: drawLine(" ERROR: Card not ready. APP_CMD_41 command timed out"); break; 
+        case z80sdcard.invalid_capacity: drawLine(" ERROR: Unsupported SD card. Use SDHC or SDXC Card"); break; 
+        default: drawLineFormat(" ERROR: Unknown Error while accessing the card: Code 0x%02X", accessresult); break;
+    }
+}
+
+void Console::print_sd_ReadWriteError(Z80SDCard::sdResult rwerror) {
+    drawLine("");
+    switch (rwerror) {        
+        case z80sdcard.not_initialized: drawLine(" ERROR: SD card not initalized"); break;                                      
+        case z80sdcard.not_ready: drawLine(" ERROR: Card not ready to read/write data."); break; 
+        case z80sdcard.read_timeout: drawLine(" ERROR: Read timeout occured"); break; 
+        case z80sdcard.write_timeout_1: drawLine(" ERROR: Write timeout occured"); break; 
+        case z80sdcard.write_timeout_2: drawLine(" ERROR: Timeout while waiting complete message occured"); break; 
+        case z80sdcard.write_error: drawLine(" ERROR: Write error signalled by card "); break; 
+        default: drawLineFormat(" ERROR: Unknown Error while reading/writing the card: Code 0x%02X", accessresult); break;
     }
 }
 

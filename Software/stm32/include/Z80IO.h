@@ -16,18 +16,13 @@
     #include <Arduino.h>
     #include <Z80Bus.h>
 
-    void z80io_interrupt_config(void);
-
     class Z80IO  {
               
         public:            
             Z80IO(Z80Bus bus);    
             void requestBus(bool request);
             void write(uint8_t ioport, uint8_t data);
-            uint8_t read(uint8_t ioport);
-            void process();
-            uint16_t irqPortB;
-            uint16_t irqPortC;            
+            uint8_t read(uint8_t ioport);          
 
         private:
             Z80Bus z80bus; 

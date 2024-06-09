@@ -14,6 +14,7 @@
 #include <Z80IO.h>
 #include <Z80SPI.h>
 #include <Z80SDCard.h>
+#include <CPMFileSystem.h>
 #include <FlashLoader.h>
 #include <Bootloader.h>
 
@@ -23,7 +24,7 @@
 
 // In idle, one quick blink every 5 seconds
 #define IDLE_LED_ON_PERIOD	   10
-#define IDLE_LED_OFF_PERIOD  4999
+#define IDLE_LED_OFF_PERIOD  4990
 
 // In Flash Mode, one second blinks
 #define FLASHMODE_LED_ON_PERIOD	  500
@@ -44,9 +45,10 @@ Z80SPI z80spi(z80io);
 Z80SDCard z80sdcard(z80spi);
 Z80Flash z80flash(z80bus);
 FlashLoader flashloader(z80flash);
+CPMFileSystem filesystem(CPMFileSystem::geometry_8k_8m_32_512, z80sdcard, z80bus);
 
 /*#########################################################################################################
- Main Program
+ Main Program5
 ##########################################################################################################*/
 
 /* Initialization --------------------------------------------------------------------------------------- */
@@ -65,7 +67,6 @@ void setup() {
 		clock.configureChannel(2, config.configdata.clock.siobClock, clock.DIV1, clock.PLLB, clock.ENABLE);  //1.8432 MHZ Clock SIOB
 	}
 
-	z80io_interrupt_config();	
 	console.begin();
 	z80bus.resetZ80();
 	delay(STARTUP_DELAY_ms);
@@ -83,12 +84,11 @@ void loop() {
 	flashloader.process();
    	statusLed.process();
    	button.process();
-	z80io.process();
 
 	//Process Serial Data
 	int rx = Serial.read();	
 	if (rx != -1){
-		if (!flashloader.serialUpdate((uint8_t) rx)) {
+		if (!flashloader.serialUpdate((uint8_t) rx)) {			
 			bootloader_magicSentence((uint8_t) rx);
 			console.serialUpdate((uint8_t) rx);
 		}

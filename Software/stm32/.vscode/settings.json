@@ -6,6 +6,8 @@
         "string_view": "cpp",
         "*.tcc": "cpp",
         "functional": "cpp",
-        "stm32f7xx_hal.h": "c"
+        "stm32f7xx_hal.h": "c",
+        "type_traits": "cpp",
+        "typeinfo": "cpp"
     }
 }

@@ -18,7 +18,9 @@ const uint8_t cmd58[]  =  { 58 | 0x40, 0x40, 0x00, 0x00, 0x00, 0x00 | 0x01 };
 /*--------------------------------------------------------------------------------------------------------
  Constructor
 ---------------------------------------------------------------------------------------------------------*/
-Z80SDCard::Z80SDCard(Z80SPI spi) : z80spi(spi) {}
+Z80SDCard::Z80SDCard(Z80SPI spi) : z80spi(spi) {
+    sdReady = false;
+}
 
 /*--------------------------------------------------------------------------------------------------------
  Writes a program to the beginning of the selected partition
@@ -27,13 +29,11 @@ Z80SDCard::sdResult Z80SDCard::writeProgram(uint8_t partition, uint8_t programNu
     if (partition > 3) return invalid_partition;
     
     //read mbr and check if the requested partition is valid (size > 0)
-    sdResult result = accessCard(true);
-    if (result != ok) { accessCard(false); return result; }
-    result = readBlock(0, sdDataBuffer);
-    if (result != ok) { accessCard(false); return result; }
+    sdResult result = readBlock(0, sdDataBuffer);
+    if (result != ok) return result;
     mbrResult mbr;
     parseMBR(&mbr, sdDataBuffer);
-    if (mbr.partitiontable[partition].size == 0) { accessCard(false); return invalid_partition; }
+    if (mbr.partitiontable[partition].size == 0) return invalid_partition;
 
     //prepare the variables for writing the porgam
     uint32_t bytesToWrite = z80SDPrograms[programNumber].length;
@@ -51,28 +51,24 @@ Z80SDCard::sdResult Z80SDCard::writeProgram(uint8_t partition, uint8_t programNu
         for (int i=nextBlockSize; i<512; i++) sdDataBuffer[i] = 0;
         result = writeBlock(blockNumber++, sdDataBuffer);
     }
-
-    accessCard(false);
     return result;
 }
 
 /*--------------------------------------------------------------------------------------------------------
- Formats the card and creates 4 partitions of 0x40000 block lengths, which is 128MBytes
+ Creates a new MBR on the SD card
  ---------------------------------------------------------------------------------------------------------*/
-Z80SDCard::sdResult Z80SDCard::formatCard() {
+Z80SDCard::sdResult Z80SDCard::formatCard(uint8_t numPartitions, uint32_t partitionStartBlock, uint32_t partitionSize) {
 
-    //initialize the block buffer
+    //initialize the sd block buffer
     for (int i=0; i<SD_BLOCK_SIZE; i++) sdDataBuffer[i] = 0;
 
     //sd partition data setup
-    uint32_t partitionSize = 0x40000;
-    uint32_t partitionStartBlock = 0x800;
     uint8_t  partitionType = 0x7F;
     uint8_t  partitionStatus = 0x00;
     uint16_t baseAddress = 0x01BE;
 
     //create partitions
-    for (int i=0; i<4; i++) {
+    for (int i=0; i<numPartitions; i++) {
         sdDataBuffer[baseAddress + 11] = partitionStartBlock >> 24;
         sdDataBuffer[baseAddress + 10] = partitionStartBlock >> 16;
         sdDataBuffer[baseAddress +  9] = partitionStartBlock >> 8;
@@ -90,24 +86,9 @@ Z80SDCard::sdResult Z80SDCard::formatCard() {
     sdDataBuffer[510] = 0x55;
     sdDataBuffer[511] = 0xAA;
 
-    //access the card
-    sdResult result = accessCard(true);
-    if (result != ok) { accessCard(false); return result; }
-
     //write block 0
-    result = writeBlock(0, sdDataBuffer);
+    sdResult result = writeBlock(0, sdDataBuffer);
 
-    //reinitialize the buffer
-    for (int i=0; i<SD_BLOCK_SIZE; i++) sdDataBuffer[i] = 0;
-    partitionStartBlock = 0x800;
-
-    //write one buffer of zeros to the beginning of each sector. This "sort of" empties the data
-    for (int i=0; i<4; i++) {
-        writeBlock(partitionStartBlock, sdDataBuffer);
-        partitionStartBlock += partitionSize;
-    }
-
-    accessCard(false);
     return result;
 }
 
@@ -120,7 +101,7 @@ void Z80SDCard::parseMBR(mbrResult* mbr, uint8_t* src) {
     mbr->partitions = 0;
     for (int i=0; i<4; i++) mbr->partitiontable[i].size = 0;
 
-    //check boot signatur
+    //check boot signature
     if ((src[510] == 0x55) && (src[511] == 0xAA)) {
         //read partition table
         uint16_t baseAddress = 0x01BE;
@@ -147,30 +128,24 @@ void Z80SDCard::parseMBR(mbrResult* mbr, uint8_t* src) {
 }
 
 /*--------------------------------------------------------------------------------------------------------
- Accesses the card, read block zero, and parse and return the partition information
+ Read block zero, parse and return the partition information
  ---------------------------------------------------------------------------------------------------------*/
 Z80SDCard::mbrResult Z80SDCard::readMBR() {
     mbrResult result;
-    //access the card
-    result.accessresult = accessCard(true);
-    if (result.accessresult == ok) {
-        //read block zero
-        result.readresult = readBlock(0, sdDataBuffer);
-        if (result.readresult == ok) {
-            //parse the block
-            parseMBR(&result, sdDataBuffer);
-        }
+    //read block zero
+    result.readresult = readBlock(0, sdDataBuffer);
+    if (result.readresult == ok) {
+        //parse the block
+        parseMBR(&result, sdDataBuffer);
     }
-    accessCard(false);
     return result;
 }
 
 /*--------------------------------------------------------------------------------------------------------
- Initialize and access the card 
+ Accesses and initalizes the card 
     - request access to the Z80 bus
     - check if a card is present in the slot
-    - idle the SPI lines
-    - wakeup the card by sneding 80 clocks with ssel high
+    - wakeup the card by sending 80 clocks with ssel high
     - send CMD0 (GO_IDLE_STATE), check R1 response (must be 0x01)
     - send CMD8 (SEND_IF_CONDITION), check R7 rsponse (must be 0x01, 0x00, 0x00, 0x01, 0xAA)
     - send CMD55 (APP_CMD), check R1 response (must be 0x01), directly followed by 
@@ -187,7 +162,8 @@ Z80SDCard::sdResult Z80SDCard::accessCard(bool state) {
         //check if card is present
         if(z80spi.checkSDDetect()) return nocard;
         //wake up card
-        wakeupCard();
+        z80spi.slaveSelect(true);
+        for (int i=0; i<10; i++) z80spi.writeByte(0xFF);
         //CMD0
         sdCommand((uint8_t*)cmd0, 6, 1);
         if (sdCmdRxBuffer[0] != 0x01) return not_idle;
@@ -214,9 +190,11 @@ Z80SDCard::sdResult Z80SDCard::accessCard(bool state) {
         if (sdCmdRxBuffer[0] != 0x00) return invalid_capacity;
         if (!(sdCmdRxBuffer[1] & 0x40)) return invalid_capacity;
         //done, we know we have a spec 2 card, hc or xd, with 512 byte blocks, and it's ready to read and write data
+        sdReady = true;
     }
     else {
-        z80spi.requestBus(false);
+        sdReady = false;
+        z80spi.requestBus(false);        
     }
     return ok;
 }
@@ -230,6 +208,8 @@ Z80SDCard::sdResult Z80SDCard::accessCard(bool state) {
     - read 2 bytes of crc (no CRC checking implemented tough)
 ---------------------------------------------------------------------------------------------------------*/
 Z80SDCard::sdResult Z80SDCard::readBlock(uint32_t blockNumber, uint8_t* dst) {
+
+    if (!sdReady) return not_initialized;
 
     //build the read command
     uint8_t sdcmd[SD_COMMAND_BUFFER_LENGTH];
@@ -282,6 +262,8 @@ Z80SDCard::sdResult Z80SDCard::readBlock(uint32_t blockNumber, uint8_t* dst) {
     - wait for complete message from card
 ---------------------------------------------------------------------------------------------------------*/
 Z80SDCard::sdResult Z80SDCard::writeBlock(uint32_t blockNumber, uint8_t* src) {
+
+    if (!sdReady) return not_initialized;
 
     //build the write command
     uint8_t sdcmd[SD_COMMAND_BUFFER_LENGTH];
@@ -366,13 +348,4 @@ void Z80SDCard::selectCard(bool select) {
     z80spi.writeByte(0xFF);
     z80spi.slaveSelect(select);
     z80spi.writeByte(0xFF);
-}
-
-/*--------------------------------------------------------------------------------------------------------
- send 80 clocks, make sure SS is high, and delay 1 ms
----------------------------------------------------------------------------------------------------------*/
-void Z80SDCard::wakeupCard() {
-    z80spi.slaveSelect(true);
-    delay(1);
-    for (int i=0; i<10; i++) z80spi.writeByte(0xFF);
 }

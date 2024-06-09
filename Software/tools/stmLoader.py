@@ -255,7 +255,8 @@ def conntectBootloader(port):
         # When bootloader sends an ack, it is successfully connected.         
         serialPort = serial.Serial(port, baudrate=baudRate, bytesize=serial.EIGHTBITS, parity=serial.PARITY_EVEN, stopbits=serial.STOPBITS_ONE, timeout=1)  # open serial port            
         serialPort.write(bytearray([0x7F]))   
-        if (waitAck()): return "connected"        
+        if (waitAck()): return "connected"    
+            
         # Device did not respond, it may be possible it already is connected. Try to send a getid command and to receive a response
         result = commandGetID()
         if (result["ok"]): return "connected"
@@ -263,12 +264,13 @@ def conntectBootloader(port):
         
         # Change serial settings to standard 115200 8N1, and send the magic sentence        
         serialPort = serial.Serial(port, baudrate=115200, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, timeout=1)  # open serial port             
-        serialPort.write("..heySTMStartYourDFUMode".encode())
-        time.sleep(0.2)            
+        serialPort.write("..helloStmDFU".encode())
+        time.sleep(0.5)            
         serialPort.close()        
         
         # change back to DFU serial settings, and try to reach the processor again  
         serialPort = serial.Serial(port, baudrate=baudRate, bytesize=serial.EIGHTBITS, parity=serial.PARITY_EVEN, stopbits=serial.STOPBITS_ONE, timeout=1)  # open serial port    
+        serialPort.reset_input_buffer()
         serialPort.write(bytearray([0x7F]))   
         if (waitAck()): return "connected"                     
         

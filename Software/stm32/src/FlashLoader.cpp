@@ -16,7 +16,7 @@
 #define HEX_MESSAGE_ACKNOWLEDGE_1   0xA1
 #define HEX_MESSAGE_FUNCTION_0      0xF0
 
-const uint8_t flashloader_magicSentence[] = "heySTMStartYourFlashMode";
+const uint8_t flashloader_magicSentence[] = "helloTeachZ80FlashLoader";
 
 /*--------------------------------------------------------------------------------------------------------
  Constructor

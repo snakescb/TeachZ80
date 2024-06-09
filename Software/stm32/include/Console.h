@@ -38,6 +38,7 @@
 
             Z80SDCard::mbrResult mbrResult;   
             Z80SDCard::sdResult sdresult;
+            Z80SDCard::sdResult accessresult;
 
             void drawMenu();
             void fillScreen();
@@ -46,6 +47,8 @@
             void drawLineFormat(const char* text, ...);
             bool addInputChar(uint8_t c, uint8_t maxlen = 8);
             void removeInputChar();
+            void print_sd_AccessError(Z80SDCard::sdResult accessresult);
+            void print_sd_ReadWriteError(Z80SDCard::sdResult rwerror);
 
     };
 
